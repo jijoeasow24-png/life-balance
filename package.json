@@ -1,0 +1,15 @@
+{
+  "name": "life-balance",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.37.0",
+    "next": "^16.2.0",
+    "react": "^18",
+    "react-dom": "^18"
+  }
+}
