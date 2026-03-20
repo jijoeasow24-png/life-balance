@@ -1,6 +1,7 @@
 import Head from 'next/head';
 import { useState, useEffect, useCallback } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
+import { useSession, signIn, signOut } from 'next-auth/react';
 
 const DOMAINS = {
   work:       { label:'Work',       color:'#378ADD', light:'#E6F1FB', dark:'#0C447C', goal:8 },
@@ -466,6 +467,42 @@ function Progress({week}) {
   );
 }
 
+
+function GoogleSync({ blocks, addToast }) {
+  const { data: session, status } = useSession();
+  const [syncing, setSyncing] = useState(false);
+  const push = async () => {
+    setSyncing(true);
+    try {
+      const r = await fetch('/api/calendar/sync', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ blocks }) });
+      const d = await r.json();
+      if (d.ok) addToast('Synced ' + d.created + ' events to Google Calendar');
+      else addToast('Sync failed: ' + d.error, 'warning');
+    } catch(e) { addToast('Sync failed', 'warning'); }
+    setSyncing(false);
+  };
+  if (status === 'loading') return null;
+  if (!session) return (
+    <div style={{marginBottom:12}}>
+      <button onClick={() => signIn('google')} style={{display:'inline-flex',alignItems:'center',gap:8,background:'var(--surface)',border:'0.5px solid var(--border)',borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:'var(--text)'}}>
+        <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Sign in with Google to sync calendar
+      </button>
+    </div>
+  );
+  return (
+    <div style={{marginBottom:12}}>
+      <div style={{fontSize:12,color:'var(--text2)',marginBottom:8}}>Signed in as {session.user?.email}</div>
+      <div style={{display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap'}}>
+        <button onClick={push} disabled={syncing} style={{background:'var(--text)',color:'var(--bg)',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,cursor:syncing?'wait':'pointer',opacity:syncing?0.7:1}}>
+          {syncing ? 'Syncing...' : 'Push to Google Calendar'}
+        </button>
+        <button onClick={() => signOut()} style={{background:'none',border:'0.5px solid var(--border)',borderRadius:8,padding:'8px 12px',fontSize:12,cursor:'pointer',color:'var(--text2)'}}>Sign out</button>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [app,setApp]=useState(null);
   const [tab,setTab]=useState('dashboard');
@@ -533,6 +570,7 @@ export default function Home() {
         {tab==='tasks'    &&<Tasks     tasks={app.tasks}   onChange={t=>{commit({...app,tasks:t});}}/>}
         {tab==='progress' &&<Progress  week={app.week}/>}
         <div style={{marginTop:40,textAlign:'center'}}>
+          <GoogleSync blocks={app.blocks} addToast={addToast}/>
           <GoogleSync blocks={app.blocks} addToast={addToast}/>
           <button onClick={()=>{commit(sanitize({}));addToast('Reset to defaults','warning');}} style={{background:'none',border:'0.5px solid var(--border)',borderRadius:8,padding:'6px 14px',fontSize:12,color:'var(--text2)',cursor:'pointer',marginTop:12}}>Reset to defaults</button>
           <div style={{fontSize:11,color:syncStatus==='offline'?'var(--amber)':'var(--text3)',marginTop:6}}>
