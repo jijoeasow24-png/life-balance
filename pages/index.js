@@ -17,12 +17,12 @@ const PRI_STYLES = {
 
 const DEFAULT_TASKS = [
   { id: 1, title: 'Review Q1 complaints data', domain: 'work', pri: 'high', done: false },
-  { id: 2, title: 'Morning prayers / quiet time', domain: 'spiritual', pri: 'high', done: false },
+  { id: 2, title: 'Morning devotion / quiet time', domain: 'spiritual', pri: 'high', done: false },
   { id: 3, title: 'Call family in Kerala', domain: 'social', pri: 'medium', done: false },
   { id: 4, title: '30-min jog or gym session', domain: 'fitness', pri: 'medium', done: false },
   { id: 5, title: 'Portfolio review — ASML, NVDA, QQQ', domain: 'work', pri: 'medium', done: false },
   { id: 6, title: 'Journal or sketch for 20 mins', domain: 'creativity', pri: 'low', done: false },
-  { id: 7, title: 'Evening Quran / reflection', domain: 'spiritual', pri: 'high', done: false },
+  { id: 7, title: 'Evening Bible reading / reflection', domain: 'spiritual', pri: 'high', done: false },
 ];
 
 const DEFAULT_BLOCKS = [
