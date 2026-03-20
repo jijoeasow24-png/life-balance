@@ -1,5 +1,6 @@
 import Head from 'next/head';
 import { useState, useEffect, useCallback } from 'react';
+import { useSession, signIn, signOut } from 'next-auth/react';
 
 const DOMAINS = {
   work:       { label:'Work',       color:'#378ADD', light:'#E6F1FB', dark:'#0C447C', goal:8 },
@@ -532,7 +533,8 @@ export default function Home() {
         {tab==='tasks'    &&<Tasks     tasks={app.tasks}   onChange={t=>{commit({...app,tasks:t});}}/>}
         {tab==='progress' &&<Progress  week={app.week}/>}
         <div style={{marginTop:40,textAlign:'center'}}>
-          <button onClick={()=>{commit(sanitize({}));addToast('Reset to defaults','warning');}} style={{background:'none',border:'0.5px solid var(--border)',borderRadius:8,padding:'6px 14px',fontSize:12,color:'var(--text2)',cursor:'pointer'}}>Reset to defaults</button>
+          <GoogleSync blocks={app.blocks} addToast={addToast}/>
+          <button onClick={()=>{commit(sanitize({}));addToast('Reset to defaults','warning');}} style={{background:'none',border:'0.5px solid var(--border)',borderRadius:8,padding:'6px 14px',fontSize:12,color:'var(--text2)',cursor:'pointer',marginTop:12}}>Reset to defaults</button>
           <div style={{fontSize:11,color:syncStatus==='offline'?'var(--amber)':'var(--text3)',marginTop:6}}>
             {syncStatus==='saving'?'Saving to cloud...':syncStatus==='offline'?'Offline — saved locally':'Synced across all devices'}
           </div>
