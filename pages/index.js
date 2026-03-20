@@ -427,8 +427,8 @@ export default function Home() {
       .then(r => r.json())
       .then(({ data }) => {
         if (!data) return;
-        const nt = data.tasks   ?? t0;
-        const nb = data.blocks  ?? b0;
+        const nt = Array.isArray(data.tasks)   ? data.tasks   : t0;
+        const nb = Array.isArray(data.blocks)  ? data.blocks  : b0;
         const nw = data.week    ?? w0;
         const ns = data.streak  ?? s0;
         setTasksRaw(nt); setBlocksRaw(nb); setWeekRaw(nw); setStreakRaw(ns);
