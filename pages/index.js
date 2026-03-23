@@ -359,7 +359,7 @@ function Tasks({tasks,onChange,initialHighFilter,onClearHighFilter}){
           </button>
         ))}
       </div>
-      <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>{[null,'high','medium','low'].map(p=>(<button key={p||'all'} onClick={()=>setPriFilter(p)} style={{padding:'3px 10px',fontSize:11,borderRadius:20,border:'0.5px solid var(--border)',background:priFilter===p?'var(--surface2)":'none',fontWeight:priFilter===p?500:400,color:'var(--text)',cursor:'pointer'}}>{p?p.charAt(0).toUpperCase()+p.slice(1):'All priorities'}</button>))}</div>{visible.length===0&&<div style={{color:'var(--text2)',fontSize:13,padding:'8px 0'}}>No tasks yet — add one above.</div>}
+      <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>{[null,'high','medium','low'].map(p=>(<button key={p||'all'} onClick={()=>setPriFilter(p)} style={{padding:'3px 10px',fontSize:11,borderRadius:20,border:'0.5px solid var(--border)',background:priFilter===p?'var(--surface2)':'none',fontWeight:priFilter===p?500:400,color:'var(--text)',cursor:'pointer'}}>{p?p.charAt(0).toUpperCase()+p.slice(1):'All priorities'}</button>))}</div>{visible.length===0&&<div style={{color:'var(--text2)',fontSize:13,padding:'8px 0'}}>No tasks yet — add one above.</div>}
       {visible.map(task=>{
         if(editId===task.id)return<TaskEditForm key={task.id} task={task} onSave={saveEdit} onCancel={()=>setEditId(null)}/>;
         const d=DOMAINS[task.domain],p=PRI_STYLES[task.pri];
