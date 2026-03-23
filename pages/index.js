@@ -136,7 +136,7 @@ function TaskEditForm({task,onSave,onCancel}){
   );
 }
 
-function Dashboard({tasks,blocks}){
+function Dashboard({tasks,blocks,onNavigate}){
   const today=new Date(),t=safeArr(tasks,[]),b=safeArr(blocks,[]);
   const highPri=t.filter(x=>x.pri==='high'&&!x.done).slice(0,5);
   const totalH=(Object.keys(DOMAINS).reduce((a,k)=>a+blockedMins(b,k,today),0)/60).toFixed(1);
@@ -155,10 +155,11 @@ function Dashboard({tasks,blocks}){
         })}
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:8,marginBottom:20}}>
-        {[['Time planned',`${totalH}h`],['Blocks today',`${todayBlocks.length}`],['Tasks done',`${t.filter(x=>x.done).length}/${t.length}`],['High priority',`${t.filter(x=>x.pri==='high'&&x.done).length}/${t.filter(x=>x.pri==='high').length}`]].map(([l,v])=>(
-          <div key={l} style={{background:'var(--surface2)',borderRadius:8,padding:'12px 14px'}}>
+        {[['Time planned',`${totalH}h`],['Blocks today',`${todayBlocks.length}`,'schedule'],['Tasks done',`${t.filter(x=>x.done).length}/${t.length}`,'tasks'],['High priority',`${t.filter(x=>x.pri==='high'&&x.done).length}/${t.filter(x=>x.pri==='high').length}`,'tasks-high']].map(([l,v,nav])=>(
+          <div key={l} onClick={nav?()=>onNavigate(nav):undefined} style={{background:'var(--surface2)',borderRadius:8,padding:'12px 14px',cursor:nav?'pointer':'default'}}>
             <div style={{fontSize:11,color:'var(--text2)',textTransform:'uppercase',letterSpacing:'0.04em',marginBottom:4}}>{l}</div>
             <div style={{fontSize:22,fontWeight:500}}>{v}</div>
+            {nav&&<div style={{fontSize:10,color:'var(--text3)',marginTop:3}}>tap to view →</div>}
           </div>
         ))}
       </div>
@@ -329,15 +330,17 @@ function Schedule({blocks,onChange}){
   );
 }
 
-function Tasks({tasks,onChange}){
+function Tasks({tasks,onChange,initialHighFilter,onClearHighFilter}){
   const t=safeArr(tasks,[]);
   const[form,setForm]=useState({title:'',domain:'work',pri:'high'});
   const[filter,setFilter]=useState('all');
+  const[priFilter,setPriFilter]=useState(null);
   const[editId,setEditId]=useState(null);
+  useEffect(()=>{if(initialHighFilter){setPriFilter('high');if(onClearHighFilter)onClearHighFilter();}},[initialHighFilter]);
   const maxId=t.reduce((a,x)=>Math.max(a,x.id||0),0);
   const add=()=>{if(!form.title.trim())return;onChange([...t,{...form,id:maxId+1,done:false}]);setForm(f=>({...f,title:''}));};
   const saveEdit=(u)=>{onChange(t.map(x=>x.id===u.id?u:x));setEditId(null);};
-  const visible=[...t].filter(x=>filter==='all'||x.domain===filter).sort((a,b)=>({high:0,medium:1,low:2}[a.pri]-{high:0,medium:1,low:2}[b.pri]));
+  const visible=[...t].filter(x=>(filter==='all'||x.domain===filter)&&(!priFilter||x.pri===priFilter)).sort((a,b)=>({high:0,medium:1,low:2}[a.pri]-{high:0,medium:1,low:2}[b.pri]));
   return(
     <div>
       <div style={{...cs.s2,marginBottom:20}}>
@@ -356,7 +359,7 @@ function Tasks({tasks,onChange}){
           </button>
         ))}
       </div>
-      {visible.length===0&&<div style={{color:'var(--text2)',fontSize:13,padding:'8px 0'}}>No tasks yet — add one above.</div>}
+      <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>{[null,'high','medium','low'].map(p=>(<button key={p||'all'} onClick={()=>setPriFilter(p)} style={{padding:'3px 10px',fontSize:11,borderRadius:20,border:'0.5px solid var(--border)',background:priFilter===p?'var(--surface2)":'none',fontWeight:priFilter===p?500:400,color:'var(--text)',cursor:'pointer'}}>{p?p.charAt(0).toUpperCase()+p.slice(1):'All priorities'}</button>))}</div>{visible.length===0&&<div style={{color:'var(--text2)',fontSize:13,padding:'8px 0'}}>No tasks yet — add one above.</div>}
       {visible.map(task=>{
         if(editId===task.id)return<TaskEditForm key={task.id} task={task} onSave={saveEdit} onCancel={()=>setEditId(null)}/>;
         const d=DOMAINS[task.domain],p=PRI_STYLES[task.pri];
@@ -451,6 +454,7 @@ function GoogleSync({blocks,addToast}){
 export default function Home(){
   const[app,setApp]=useState(null);
   const[tab,setTab]=useState('dashboard');
+  const[highFilter,setHighFilter]=useState(false);
   const[now,setNow]=useState(null);
   const[toasts,setToasts]=useState([]);
   const[syncStatus,setSyncStatus]=useState('synced');
@@ -503,9 +507,9 @@ export default function Home(){
         <div style={{display:'flex',borderBottom:'0.5px solid var(--border)',marginBottom:24,overflowX:'auto'}}>
           {['dashboard','schedule','tasks','progress'].map(t=>(<button key={t} style={cs.nav(tab===t)} onClick={()=>setTab(t)}>{t.charAt(0).toUpperCase()+t.slice(1)}</button>))}
         </div>
-        {tab==='dashboard'&&<Dashboard tasks={app.tasks} blocks={app.blocks}/>}
+        {tab==='dashboard'&&<Dashboard tasks={app.tasks} blocks={app.blocks} onNavigate={(dest)=>{if(dest==='tasks-high'){setHighFilter(true);setTab('tasks');}else setTab(dest);}}/>}
         {tab==='schedule'&&<Schedule blocks={app.blocks} onChange={b=>{commit({...app,blocks:b});addToast('Schedule saved');}}/>}
-        {tab==='tasks'&&<Tasks tasks={app.tasks} onChange={t=>{commit({...app,tasks:t});}}/>}
+        {tab==='tasks'&&<Tasks tasks={app.tasks} onChange={t=>{commit({...app,tasks:t});}} initialHighFilter={highFilter} onClearHighFilter={()=>setHighFilter(false)}/>}
         {tab==='progress'&&<Progress week={app.week}/>}
         <div style={{marginTop:40,textAlign:'center'}}>
           <GoogleSync blocks={app.blocks} addToast={addToast}/>
