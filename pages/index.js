@@ -39,6 +39,52 @@ const DEFAULT_BLOCKS = [
 ];
 const DEFAULT_WEEK={work:[0,0,0,0,0,0,0],spiritual:[0,0,0,0,0,0,0],social:[0,0,0,0,0,0,0],fitness:[0,0,0,0,0,0,0],creativity:[0,0,0,0,0,0,0]};
 
+// ─── Phase 3: Onboarding answers → realistic week data ───────────────────────
+
+function buildWeekFromAnswers(answers) {
+  // Each answer maps to approximate daily hours per domain for each day [M,T,W,T,F,S,S]
+  const week = {
+    work:       [0,0,0,0,0,0,0],
+    spiritual:  [0,0,0,0,0,0,0],
+    social:     [0,0,0,0,0,0,0],
+    fitness:    [0,0,0,0,0,0,0],
+    creativity: [0,0,0,0,0,0,0],
+  };
+
+  // Work hours based on job type
+  const workMap = {
+    fulltime:  [8,8,8,8,8,0,0],
+    parttime:  [4,4,4,4,0,0,0],
+    freelance: [6,6,0,6,6,0,0],
+    homemaker: [3,3,3,3,3,2,0],
+  };
+  week.work = workMap[answers.work] || workMap.fulltime;
+
+  // Spiritual hours based on worship days
+  const spirMap = {
+    sunday:    [0.3,0.3,0.3,0.3,0.3,0,2],
+    friday:    [0.3,0.3,0.3,0.3,1.5,0,0],
+    saturday:  [0.3,0.3,0.3,0.3,0.3,2,0],
+    daily:     [1,1,1,1,1,1,1],
+  };
+  week.spiritual = spirMap[answers.worship] || spirMap.sunday;
+
+  // Fitness based on activity level
+  const fitMap = {
+    active:    [1,0,1,0,1,1.5,0],
+    moderate:  [0,1,0,1,0,1,0],
+    light:     [0,0,0.5,0,0,0.5,0],
+    sedentary: [0,0,0,0,0,0.5,0],
+  };
+  week.fitness = fitMap[answers.fitness] || fitMap.moderate;
+
+  // Social — always reasonable defaults
+  week.social    = [0.5,0.5,0.5,0.5,0.5,2,2];
+  week.creativity= [0,0.5,0,0.5,0.5,1,0.5];
+
+  return week;
+}
+
 // ─── Phase 2: Faith Content ───────────────────────────────────────────────────
 
 const SCRIPTURES=[
@@ -57,11 +103,7 @@ const SCRIPTURES=[
   {verse:'The heart of man plans his way, but the Lord establishes his steps.',ref:'Proverbs 16:9',theme:'purpose'},
   {verse:'And whatever you ask in prayer, you will receive, if you have faith.',ref:'Matthew 21:22',theme:'faith'},
 ];
-
-function getDailyScripture(){
-  const dayOfYear=Math.floor((Date.now()-new Date(new Date().getFullYear(),0,0))/86400000);
-  return SCRIPTURES[dayOfYear%SCRIPTURES.length];
-}
+function getDailyScripture(){const d=Math.floor((Date.now()-new Date(new Date().getFullYear(),0,0))/86400000);return SCRIPTURES[d%SCRIPTURES.length];}
 function isSabbath(){const d=new Date().getDay();return d===0||d===6;}
 function isFirstOfMonth(){return new Date().getDate()===1;}
 
@@ -87,13 +129,14 @@ function occursOn(block,date){
   }
 }
 function sanitize(data){
-  if(!data||typeof data!=='object')return{tasks:[],blocks:DEFAULT_BLOCKS,week:DEFAULT_WEEK,streak:{count:1,lastDate:todayKey()},sessions:[],lastReview:null,titheLog:[]};
+  if(!data||typeof data!=='object')return{tasks:[],blocks:DEFAULT_BLOCKS,week:DEFAULT_WEEK,streak:{count:1,lastDate:todayKey()},sessions:[],lastReview:null,titheLog:[],onboarded:false};
   return{
     tasks:safeArr(data.tasks,[]),blocks:safeArr(data.blocks,DEFAULT_BLOCKS),
     week:(data.week&&typeof data.week==='object')?data.week:DEFAULT_WEEK,
     streak:(data.streak&&typeof data.streak==='object')?data.streak:{count:1,lastDate:todayKey()},
     sessions:safeArr(data.sessions,[]),lastReview:data.lastReview||null,
     titheLog:safeArr(data.titheLog,[]),
+    onboarded:data.onboarded===true,
   };
 }
 function lsLoad(){try{const r=localStorage.getItem('lb_app');return r?sanitize(JSON.parse(r)):null;}catch{return null;}}
@@ -131,15 +174,121 @@ const cs={
   ghost:{background:'none',border:'0.5px solid var(--border)',borderRadius:6,padding:'4px 10px',cursor:'pointer',fontSize:12,color:'var(--text2)'},
 };
 
+// ─── Phase 3: Onboarding Modal ────────────────────────────────────────────────
+
+const ONBOARD_STEPS = [
+  {
+    key:'work',
+    question:'What best describes your work life?',
+    subtitle:'This helps set your Work domain goal.',
+    options:[
+      {value:'fulltime', label:'Full-time job', sub:'~8 hrs/day'},
+      {value:'parttime', label:'Part-time', sub:'~4 hrs/day'},
+      {value:'freelance',label:'Freelance / self-employed', sub:'flexible hours'},
+      {value:'homemaker',label:'Homemaker / caregiver', sub:'home-based'},
+    ],
+  },
+  {
+    key:'worship',
+    question:'When do you primarily worship?',
+    subtitle:'Helps pre-fill your Spiritual blocks.',
+    options:[
+      {value:'sunday',   label:'Sunday church', sub:'weekly gathering'},
+      {value:'friday',   label:'Friday service', sub:'weekly gathering'},
+      {value:'saturday', label:'Saturday Sabbath', sub:'weekly gathering'},
+      {value:'daily',    label:'Daily devotion', sub:'morning routine'},
+    ],
+  },
+  {
+    key:'fitness',
+    question:'How would you describe your activity level?',
+    subtitle:'Sets realistic Fitness goals from day one.',
+    options:[
+      {value:'active',   label:'Very active', sub:'gym or sport 4–5x/week'},
+      {value:'moderate', label:'Moderate', sub:'exercise 2–3x/week'},
+      {value:'light',    label:'Light', sub:'walks, occasional activity'},
+      {value:'sedentary',label:'Mostly sedentary', sub:'desk job, minimal exercise'},
+    ],
+  },
+];
+
+function OnboardingModal({onComplete}){
+  const[step,setStep]=useState(0);
+  const[answers,setAnswers]=useState({});
+  const current=ONBOARD_STEPS[step];
+  const isLast=step===ONBOARD_STEPS.length-1;
+  const selected=answers[current.key];
+
+  const choose=(value)=>{
+    const next={...answers,[current.key]:value};
+    setAnswers(next);
+    if(isLast){onComplete(next);}
+    else{setTimeout(()=>setStep(s=>s+1),200);}
+  };
+
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:600,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <div style={{background:'var(--bg)',borderRadius:'24px 24px 0 0',padding:'28px 20px 40px',width:'100%',maxWidth:680,boxShadow:'0 -8px 40px rgba(0,0,0,0.2)'}}>
+
+        {/* Progress dots */}
+        <div style={{display:'flex',justifyContent:'center',gap:8,marginBottom:28}}>
+          {ONBOARD_STEPS.map((_,i)=>(
+            <div key={i} style={{width:i===step?24:8,height:8,borderRadius:4,background:i===step?'#7F77DD':i<step?'#AFA9EC':'var(--border)',transition:'all 0.3s'}}/>
+          ))}
+        </div>
+
+        {/* Step header */}
+        <div style={{marginBottom:24,textAlign:'center'}}>
+          <div style={{fontSize:11,fontWeight:500,color:'#7F77DD',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>
+            Step {step+1} of {ONBOARD_STEPS.length}
+          </div>
+          <div style={{fontSize:20,fontWeight:500,color:'var(--text)',marginBottom:6,lineHeight:1.3}}>
+            {current.question}
+          </div>
+          <div style={{fontSize:13,color:'var(--text2)'}}>{current.subtitle}</div>
+        </div>
+
+        {/* Options */}
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {current.options.map(opt=>(
+            <button key={opt.value} onClick={()=>choose(opt.value)} style={{
+              display:'flex',alignItems:'center',justifyContent:'space-between',
+              padding:'14px 16px',borderRadius:12,cursor:'pointer',textAlign:'left',
+              border:`1.5px solid ${selected===opt.value?'#7F77DD':'var(--border)'}`,
+              background:selected===opt.value?'#EEEDFE':'var(--surface)',
+              transition:'all 0.15s',
+            }}>
+              <div>
+                <div style={{fontSize:14,fontWeight:500,color:selected===opt.value?'#3C3489':'var(--text)'}}>{opt.label}</div>
+                <div style={{fontSize:12,color:selected===opt.value?'#534AB7':'var(--text2)',marginTop:2}}>{opt.sub}</div>
+              </div>
+              {selected===opt.value&&(
+                <div style={{width:20,height:20,borderRadius:'50%',background:'#7F77DD',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                  <svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" fill="none" stroke="#fff" strokeWidth="1.8"/></svg>
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Skip */}
+        <div style={{textAlign:'center',marginTop:20}}>
+          <button onClick={()=>onComplete(null)} style={{background:'none',border:'none',fontSize:12,color:'var(--text3)',cursor:'pointer'}}>
+            Skip setup — I'll configure manually
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Faith Components ─────────────────────────────────────────────────────────
 
 function ScriptureCard(){
   const s=getDailyScripture();
   return(
     <div style={{background:'#EEEDFE',borderRadius:12,padding:'14px 16px',marginBottom:20,borderLeft:'3px solid #7F77DD'}}>
-      <div style={{fontSize:11,fontWeight:500,color:'#534AB7',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>
-        Word for today · {s.theme}
-      </div>
+      <div style={{fontSize:11,fontWeight:500,color:'#534AB7',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Word for today · {s.theme}</div>
       <div style={{fontSize:14,color:'#26215C',lineHeight:1.6,fontStyle:'italic',marginBottom:8}}>"{s.verse}"</div>
       <div style={{fontSize:12,color:'#3C3489',fontWeight:500}}>{s.ref}</div>
     </div>
@@ -149,15 +298,10 @@ function ScriptureCard(){
 function SabbathBanner(){
   const[dismissed,setDismissed]=useState(false);
   if(dismissed)return null;
-  const msg=new Date().getDay()===0
-    ?'Sunday — a day of rest and worship. Be present with God and family today.'
-    :'Saturday — rest well. You don\'t have to be productive today.';
+  const msg=new Date().getDay()===0?'Sunday — a day of rest and worship. Be present with God and family today.':'Saturday — rest well. You don\'t have to be productive today.';
   return(
     <div style={{background:'#E1F5EE',borderRadius:12,padding:'14px 16px',marginBottom:20,borderLeft:'3px solid #1D9E75',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-      <div>
-        <div style={{fontSize:13,fontWeight:500,color:'#085041',marginBottom:4}}>Sabbath rest</div>
-        <div style={{fontSize:13,color:'#0F6E56',lineHeight:1.5}}>{msg}</div>
-      </div>
+      <div><div style={{fontSize:13,fontWeight:500,color:'#085041',marginBottom:4}}>Sabbath rest</div><div style={{fontSize:13,color:'#0F6E56',lineHeight:1.5}}>{msg}</div></div>
       <button onClick={()=>setDismissed(true)} style={{background:'none',border:'none',fontSize:18,color:'#0F6E56',cursor:'pointer',padding:'0 0 0 12px',flexShrink:0}}>×</button>
     </div>
   );
@@ -172,9 +316,7 @@ function TitheReminder({titheLog,onLog}){
     <div style={{background:'#FAEEDA',borderRadius:12,padding:'14px 16px',marginBottom:20,borderLeft:'3px solid #BA7517',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
       <div style={{flex:1}}>
         <div style={{fontSize:13,fontWeight:500,color:'#633806',marginBottom:4}}>Tithe reminder</div>
-        <div style={{fontSize:13,color:'#854F0B',lineHeight:1.5,marginBottom:10}}>
-          Honour the Lord with your firstfruits. Have you set aside your tithe this month?
-        </div>
+        <div style={{fontSize:13,color:'#854F0B',lineHeight:1.5,marginBottom:10}}>Honour the Lord with your firstfruits. Have you set aside your tithe this month?</div>
         <div style={{display:'flex',gap:8}}>
           <button onClick={()=>{onLog(thisMonth);setDismissed(true);}} style={{...cs.btn,background:'#BA7517',fontSize:12,padding:'6px 14px'}}>Mark as given</button>
           <button onClick={()=>setDismissed(true)} style={{...cs.ghost,fontSize:12}}>Remind me later</button>
@@ -205,7 +347,7 @@ function FocusTimer({onLog,addToast}){
     timerRef.current=setInterval(()=>{
       setSecs(s=>{
         if(s<=1){clearInterval(timerRef.current);
-          if(phase==='work'){onLog(domain,WORK);addToast(`${WORK}m deep work logged for ${DOMAINS[domain].label} 🎯`);setPhase('break');setSecs(BREAK*60);return 0;}
+          if(phase==='work'){onLog(domain,WORK);addToast(`${WORK}m logged for ${DOMAINS[domain].label} 🎯`);setPhase('break');setSecs(BREAK*60);return 0;}
           else{setPhase('idle');setSecs(WORK*60);return 0;}
         }return s-1;
       });
@@ -280,9 +422,7 @@ function BalanceWheel({pcts}){
 // ─── Weekly Review ────────────────────────────────────────────────────────────
 
 function WeeklyReview({app,onSave,onDismiss}){
-  const[q1,setQ1]=useState('');
-  const[q2,setQ2]=useState('');
-  const[q3,setQ3]=useState('');
+  const[q1,setQ1]=useState('');const[q2,setQ2]=useState('');const[q3,setQ3]=useState('');
   const domainList=Object.entries(DOMAINS);
   const allPcts=domainList.map(([k,d])=>{const arr=safeArr(app.week[k],[0,0,0,0,0,0,0]);return Math.min(100,Math.round(arr.reduce((a,b)=>a+b,0)/d.goal/7*100));});
   const score=Math.round(allPcts.reduce((a,b)=>a+b,0)/allPcts.length);
@@ -311,7 +451,7 @@ function WeeklyReview({app,onSave,onDismiss}){
             </div>
           ))}
         </div>
-        {[['What went well this week?',q1,setQ1,'e.g. Stayed consistent with morning prayer...'],
+        {[['What went well this week?',q1,setQ1,'e.g. Consistent morning prayer, great family time...'],
           ['What was neglected or felt off?',q2,setQ2,'e.g. Missed gym sessions, less creative time...'],
           ['What is the #1 priority for next week?',q3,setQ3,'e.g. Block 3 fitness sessions...']
         ].map(([label,val,setter,ph])=>(
@@ -574,7 +714,6 @@ function Dashboard({tasks,blocks,sessions,titheLog,onNavigate,onOpenReview,onLog
   const today=new Date(),t=safeArr(tasks,[]),b=safeArr(blocks,[]);
   const highPri=t.filter(x=>x.pri==='high'&&!x.done).slice(0,5);
   const totalH=(Object.keys(DOMAINS).reduce((a,k)=>a+blockedMins(b,k,today),0)/60).toFixed(1);
-  const todayBlocks=b.filter(x=>occursOn(x,today));
   const focusMins=safeArr(sessions,[]).filter(s=>s.date===today.toISOString().slice(0,10)).reduce((a,s)=>a+s.mins,0);
   return(
     <div>
@@ -625,7 +764,6 @@ function Progress({week,sessions,onOpenReview,lastReview}){
   const sw=week&&typeof week==='object'?week:DEFAULT_WEEK;
   const domainList=Object.entries(DOMAINS);
   const allPcts=domainList.map(([k,d])=>{const arr=safeArr(sw[k],[0,0,0,0,0,0,0]);return Math.min(100,Math.round(arr.reduce((a,b)=>a+b,0)/d.goal/7*100));});
-  const score=Math.round(allPcts.reduce((a,b)=>a+b,0)/allPcts.length);
   const wk=weekKey();
   const thisWeekSessions=safeArr(sessions,[]).filter(s=>{const d=new Date(s.date),wkD=new Date(wk);return d>=wkD&&d<new Date(wkD.getTime()+7*86400000);});
   const focusByDomain=Object.fromEntries(Object.keys(DOMAINS).map(k=>[k,0]));
@@ -709,6 +847,8 @@ function GoogleSync({blocks,addToast}){
   );
 }
 
+// ─── Home ─────────────────────────────────────────────────────────────────────
+
 export default function Home(){
   const[app,setApp]=useState(null);
   const[tab,setTab]=useState('dashboard');
@@ -717,6 +857,7 @@ export default function Home(){
   const[toasts,setToasts]=useState([]);
   const[syncStatus,setSyncStatus]=useState('synced');
   const[showReview,setShowReview]=useState(false);
+  const[showOnboarding,setShowOnboarding]=useState(false);
 
   const commit=useCallback((next)=>{const safe=sanitize(next);setApp(safe);lsSave(safe);setSyncStatus('saving');scheduleSync(safe);setTimeout(()=>setSyncStatus('synced'),2200);},[]);
   const addToast=useCallback((msg,type='success')=>{const id=Date.now();setToasts(p=>[...p,{id,msg,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3000);},[]);
@@ -735,10 +876,29 @@ export default function Home(){
     setShowReview(false);addToast('Review saved ✅');
   },[addToast]);
 
+  // Called when onboarding completes
+  const completeOnboarding=useCallback((answers)=>{
+    setShowOnboarding(false);
+    setApp(prev=>{
+      if(!prev)return prev;
+      const week=answers?buildWeekFromAnswers(answers):prev.week;
+      const next=sanitize({...prev,week,onboarded:true});
+      lsSave(next);scheduleSync(next);return next;
+    });
+    addToast('Welcome! Your balance wheel is ready 🎉');
+  },[addToast]);
+
   useEffect(()=>{
-    const cached=lsLoad();setApp(cached||sanitize({}));setNow(new Date());
+    const cached=lsLoad();const initial=cached||sanitize({});
+    setApp(initial);setNow(new Date());
+    // Show onboarding if not yet done
+    if(!initial.onboarded){setTimeout(()=>setShowOnboarding(true),600);}
     const timer=setInterval(()=>setNow(new Date()),30000);
-    fetch('/api/data').then(r=>r.json()).then(({data})=>{if(!data)return;const parsed=typeof data==='string'?JSON.parse(data):data;const safe=sanitize(parsed);setApp(safe);lsSave(safe);}).catch(()=>setSyncStatus('offline'));
+    fetch('/api/data').then(r=>r.json()).then(({data})=>{
+      if(!data)return;const parsed=typeof data==='string'?JSON.parse(data):data;
+      const safe=sanitize(parsed);setApp(safe);lsSave(safe);
+      if(!safe.onboarded)setShowOnboarding(true);
+    }).catch(()=>setSyncStatus('offline'));
     return()=>clearInterval(timer);
   },[]);
 
@@ -749,10 +909,10 @@ export default function Home(){
   },[!!app]);
 
   useEffect(()=>{
-    if(!app)return;
+    if(!app||showOnboarding)return;
     const isSunday=new Date().getDay()===0,alreadyReviewed=app.lastReview?.date===todayKey();
     if(isSunday&&!alreadyReviewed&&!showReview){const t=setTimeout(()=>setShowReview(true),2000);return()=>clearTimeout(t);}
-  },[!!app]);
+  },[!!app,showOnboarding]);
 
   if(!app||!now)return null;
   const allPcts=Object.entries(DOMAINS).map(([k,d])=>Math.min(100,blockedMins(app.blocks,k,now)/60/d.goal*100));
@@ -800,7 +960,8 @@ export default function Home(){
         </div>
       </div>
       <FocusTimer onLog={logSession} addToast={addToast}/>
-      {showReview&&<WeeklyReview app={app} onSave={saveReview} onDismiss={()=>setShowReview(false)}/>}
+      {showOnboarding&&<OnboardingModal onComplete={completeOnboarding}/>}
+      {showReview&&!showOnboarding&&<WeeklyReview app={app} onSave={saveReview} onDismiss={()=>setShowReview(false)}/>}
     </>
   );
 }
