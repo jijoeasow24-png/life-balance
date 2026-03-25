@@ -37,13 +37,38 @@ const DEFAULT_BLOCKS = [
   {id:17,title:'Journaling / sketching / music',domain:'creativity',start:'20:00',end:'21:00',recur:'weekly',date:FRI},
   {id:18,title:'Creative project time',domain:'creativity',start:'14:00',end:'15:00',recur:'weekly',date:SAT},
 ];
-const DEFAULT_TASKS = [];
-const DEFAULT_WEEK = {work:[0,0,0,0,0,0,0],spiritual:[0,0,0,0,0,0,0],social:[0,0,0,0,0,0,0],fitness:[0,0,0,0,0,0,0],creativity:[0,0,0,0,0,0,0]};
+const DEFAULT_WEEK={work:[0,0,0,0,0,0,0],spiritual:[0,0,0,0,0,0,0],social:[0,0,0,0,0,0,0],fitness:[0,0,0,0,0,0,0],creativity:[0,0,0,0,0,0,0]};
+
+// ─── Phase 2: Faith Content ───────────────────────────────────────────────────
+
+const SCRIPTURES=[
+  {verse:'Commit to the Lord whatever you do, and he will establish your plans.',ref:'Proverbs 16:3',theme:'purpose'},
+  {verse:'Be still, and know that I am God.',ref:'Psalm 46:10',theme:'rest'},
+  {verse:'Whatever you do, work at it with all your heart, as working for the Lord.',ref:'Colossians 3:23',theme:'work'},
+  {verse:'Honour the Lord with your wealth, with the firstfruits of all your crops.',ref:'Proverbs 3:9',theme:'stewardship'},
+  {verse:'Come to me, all you who are weary and burdened, and I will give you rest.',ref:'Matthew 11:28',theme:'rest'},
+  {verse:'For I know the plans I have for you, plans to prosper you and not to harm you.',ref:'Jeremiah 29:11',theme:'purpose'},
+  {verse:'The Lord is my shepherd, I lack nothing.',ref:'Psalm 23:1',theme:'provision'},
+  {verse:'Trust in the Lord with all your heart and lean not on your own understanding.',ref:'Proverbs 3:5',theme:'faith'},
+  {verse:'I can do all this through him who gives me strength.',ref:'Philippians 4:13',theme:'strength'},
+  {verse:'Seek first his kingdom and his righteousness, and all these things will be given to you.',ref:'Matthew 6:33',theme:'priority'},
+  {verse:'Do not be anxious about anything, but in every situation present your requests to God.',ref:'Philippians 4:6',theme:'peace'},
+  {verse:'A generous person will prosper; whoever refreshes others will be refreshed.',ref:'Proverbs 11:25',theme:'generosity'},
+  {verse:'The heart of man plans his way, but the Lord establishes his steps.',ref:'Proverbs 16:9',theme:'purpose'},
+  {verse:'And whatever you ask in prayer, you will receive, if you have faith.',ref:'Matthew 21:22',theme:'faith'},
+];
+
+function getDailyScripture(){
+  const dayOfYear=Math.floor((Date.now()-new Date(new Date().getFullYear(),0,0))/86400000);
+  return SCRIPTURES[dayOfYear%SCRIPTURES.length];
+}
+function isSabbath(){const d=new Date().getDay();return d===0||d===6;}
+function isFirstOfMonth(){return new Date().getDate()===1;}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function todayKey(){return new Date().toISOString().slice(0,10);}
-function weekKey(){const d=new Date();const mon=new Date(d);mon.setDate(d.getDate()-(d.getDay()===0?6:d.getDay()-1));return mon.toISOString().slice(0,10);}
+function weekKey(){const d=new Date(),mon=new Date(d);mon.setDate(d.getDate()-(d.getDay()===0?6:d.getDay()-1));return mon.toISOString().slice(0,10);}
 function safeArr(v,fb){return Array.isArray(v)?v:fb;}
 function fmtTime(h24){const[h,m]=h24.split(':').map(Number);return `${h%12||12}:${String(m).padStart(2,'0')} ${h>=12?'PM':'AM'}`;}
 function clockStr(d){const h=d.getHours(),m=d.getMinutes();return `${h%12||12}:${String(m).padStart(2,'0')} ${h>=12?'PM':'AM'}`;}
@@ -62,14 +87,13 @@ function occursOn(block,date){
   }
 }
 function sanitize(data){
-  if(!data||typeof data!=='object')return{tasks:[],blocks:DEFAULT_BLOCKS,week:DEFAULT_WEEK,streak:{count:1,lastDate:todayKey()},sessions:[],lastReview:null};
+  if(!data||typeof data!=='object')return{tasks:[],blocks:DEFAULT_BLOCKS,week:DEFAULT_WEEK,streak:{count:1,lastDate:todayKey()},sessions:[],lastReview:null,titheLog:[]};
   return{
-    tasks:safeArr(data.tasks,[]),
-    blocks:safeArr(data.blocks,DEFAULT_BLOCKS),
+    tasks:safeArr(data.tasks,[]),blocks:safeArr(data.blocks,DEFAULT_BLOCKS),
     week:(data.week&&typeof data.week==='object')?data.week:DEFAULT_WEEK,
     streak:(data.streak&&typeof data.streak==='object')?data.streak:{count:1,lastDate:todayKey()},
-    sessions:safeArr(data.sessions,[]),
-    lastReview:data.lastReview||null,
+    sessions:safeArr(data.sessions,[]),lastReview:data.lastReview||null,
+    titheLog:safeArr(data.titheLog,[]),
   };
 }
 function lsLoad(){try{const r=localStorage.getItem('lb_app');return r?sanitize(JSON.parse(r)):null;}catch{return null;}}
@@ -98,8 +122,6 @@ function layoutBlocks(blocks){
   return result;
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const cs={
   card:{background:'var(--surface)',border:'0.5px solid var(--border)',borderRadius:12,padding:'12px 14px'},
   s2:{background:'var(--surface2)',borderRadius:12,padding:'14px'},
@@ -109,7 +131,206 @@ const cs={
   ghost:{background:'none',border:'0.5px solid var(--border)',borderRadius:6,padding:'4px 10px',cursor:'pointer',fontSize:12,color:'var(--text2)'},
 };
 
-// ─── Form Components ──────────────────────────────────────────────────────────
+// ─── Faith Components ─────────────────────────────────────────────────────────
+
+function ScriptureCard(){
+  const s=getDailyScripture();
+  return(
+    <div style={{background:'#EEEDFE',borderRadius:12,padding:'14px 16px',marginBottom:20,borderLeft:'3px solid #7F77DD'}}>
+      <div style={{fontSize:11,fontWeight:500,color:'#534AB7',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>
+        Word for today · {s.theme}
+      </div>
+      <div style={{fontSize:14,color:'#26215C',lineHeight:1.6,fontStyle:'italic',marginBottom:8}}>"{s.verse}"</div>
+      <div style={{fontSize:12,color:'#3C3489',fontWeight:500}}>{s.ref}</div>
+    </div>
+  );
+}
+
+function SabbathBanner(){
+  const[dismissed,setDismissed]=useState(false);
+  if(dismissed)return null;
+  const msg=new Date().getDay()===0
+    ?'Sunday — a day of rest and worship. Be present with God and family today.'
+    :'Saturday — rest well. You don\'t have to be productive today.';
+  return(
+    <div style={{background:'#E1F5EE',borderRadius:12,padding:'14px 16px',marginBottom:20,borderLeft:'3px solid #1D9E75',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+      <div>
+        <div style={{fontSize:13,fontWeight:500,color:'#085041',marginBottom:4}}>Sabbath rest</div>
+        <div style={{fontSize:13,color:'#0F6E56',lineHeight:1.5}}>{msg}</div>
+      </div>
+      <button onClick={()=>setDismissed(true)} style={{background:'none',border:'none',fontSize:18,color:'#0F6E56',cursor:'pointer',padding:'0 0 0 12px',flexShrink:0}}>×</button>
+    </div>
+  );
+}
+
+function TitheReminder({titheLog,onLog}){
+  const[dismissed,setDismissed]=useState(false);
+  const thisMonth=new Date().toISOString().slice(0,7);
+  const alreadyLogged=safeArr(titheLog,[]).some(t=>t.month===thisMonth);
+  if(dismissed||alreadyLogged||!isFirstOfMonth())return null;
+  return(
+    <div style={{background:'#FAEEDA',borderRadius:12,padding:'14px 16px',marginBottom:20,borderLeft:'3px solid #BA7517',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+      <div style={{flex:1}}>
+        <div style={{fontSize:13,fontWeight:500,color:'#633806',marginBottom:4}}>Tithe reminder</div>
+        <div style={{fontSize:13,color:'#854F0B',lineHeight:1.5,marginBottom:10}}>
+          Honour the Lord with your firstfruits. Have you set aside your tithe this month?
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={()=>{onLog(thisMonth);setDismissed(true);}} style={{...cs.btn,background:'#BA7517',fontSize:12,padding:'6px 14px'}}>Mark as given</button>
+          <button onClick={()=>setDismissed(true)} style={{...cs.ghost,fontSize:12}}>Remind me later</button>
+        </div>
+      </div>
+      <button onClick={()=>setDismissed(true)} style={{background:'none',border:'none',fontSize:18,color:'#854F0B',cursor:'pointer',padding:'0 0 0 12px',flexShrink:0}}>×</button>
+    </div>
+  );
+}
+
+// ─── Focus Timer ──────────────────────────────────────────────────────────────
+
+function FocusTimer({onLog,addToast}){
+  const[open,setOpen]=useState(false);
+  const[domain,setDomain]=useState('work');
+  const[phase,setPhase]=useState('idle');
+  const[secs,setSecs]=useState(25*60);
+  const WORK=25,BREAK=5;
+  const timerRef=useRef(null);
+  const startWork=()=>{clearInterval(timerRef.current);setPhase('work');setSecs(WORK*60);};
+  const stopAndLog=()=>{
+    clearInterval(timerRef.current);
+    if(phase==='work'){const elapsed=Math.max(1,Math.round((WORK*60-secs)/60));onLog(domain,elapsed);addToast(`${elapsed}m logged for ${DOMAINS[domain].label} ✅`);}
+    setPhase('idle');setSecs(WORK*60);
+  };
+  useEffect(()=>{
+    if(phase==='idle'){clearInterval(timerRef.current);return;}
+    timerRef.current=setInterval(()=>{
+      setSecs(s=>{
+        if(s<=1){clearInterval(timerRef.current);
+          if(phase==='work'){onLog(domain,WORK);addToast(`${WORK}m deep work logged for ${DOMAINS[domain].label} 🎯`);setPhase('break');setSecs(BREAK*60);return 0;}
+          else{setPhase('idle');setSecs(WORK*60);return 0;}
+        }return s-1;
+      });
+    },1000);
+    return()=>clearInterval(timerRef.current);
+  },[phase,domain]);
+  const mm=String(Math.floor(secs/60)).padStart(2,'0'),ss2=String(secs%60).padStart(2,'0');
+  const d=DOMAINS[domain],isRunning=phase!=='idle';
+  const progress=phase==='work'?1-(secs/(WORK*60)):phase==='break'?1-(secs/(BREAK*60)):0;
+  const circ=2*Math.PI*34;
+  return(
+    <div style={{position:'fixed',bottom:88,right:16,zIndex:200}}>
+      {!open?(
+        <button onClick={()=>setOpen(true)} title="Focus timer" style={{width:50,height:50,borderRadius:'50%',background:isRunning?d.color:'var(--surface)',border:`1.5px solid ${isRunning?d.color:'var(--border)'}`,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 2px 12px rgba(0,0,0,0.12)',transition:'all 0.2s'}}>
+          {isRunning?<span style={{fontSize:13,fontWeight:600,color:'#fff'}}>{mm}</span>:'⏱'}
+        </button>
+      ):(
+        <div style={{background:'var(--surface)',border:'0.5px solid var(--border)',borderRadius:20,padding:'18px 18px 16px',width:230,boxShadow:'0 8px 32px rgba(0,0,0,0.14)'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:500}}>Focus timer</div>
+            <button onClick={()=>setOpen(false)} style={{background:'none',border:'none',cursor:'pointer',fontSize:18,color:'var(--text2)',lineHeight:1}}>×</button>
+          </div>
+          <div style={{display:'flex',justifyContent:'center',marginBottom:14}}>
+            <svg width={84} height={84}>
+              <circle cx={42} cy={42} r={34} fill="none" stroke="var(--border)" strokeWidth={4}/>
+              {isRunning&&<circle cx={42} cy={42} r={34} fill="none" stroke={phase==='break'?'#639922':d.color} strokeWidth={4} strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ*(1-progress)} transform="rotate(-90 42 42)" style={{transition:'stroke-dashoffset 0.9s linear'}}/>}
+              <text x={42} y={44} textAnchor="middle" dominantBaseline="middle" style={{fontSize:18,fontWeight:600,fill:'var(--text)',fontFamily:'inherit'}}>{mm}:{ss2}</text>
+            </svg>
+          </div>
+          <div style={{textAlign:'center',fontSize:11,color:'var(--text2)',marginBottom:14,height:16}}>
+            {phase==='idle'&&'Select domain and start'}{phase==='work'&&`Focusing on ${d.label}`}{phase==='break'&&'Break — well done!'}
+          </div>
+          {phase==='idle'&&<select value={domain} onChange={e=>setDomain(e.target.value)} style={{width:'100%',marginBottom:12,fontSize:13,padding:'6px 8px',borderRadius:8,border:'0.5px solid var(--border)',background:'var(--surface)',color:'var(--text)'}}>{Object.entries(DOMAINS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select>}
+          <div style={{display:'flex',gap:8}}>
+            {phase==='idle'?<button onClick={startWork} style={{...cs.btn,flex:1,textAlign:'center',background:d.color,borderRadius:10,padding:'10px 0'}}>Start 25m</button>:(
+              <><button onClick={stopAndLog} style={{...cs.btn,flex:1,textAlign:'center',background:'#E24B4A',borderRadius:10,padding:'10px 0',fontSize:12}}>Stop & log</button>
+              {phase==='break'&&<button onClick={startWork} style={{...cs.ghost,flex:1,textAlign:'center',borderRadius:10,padding:'10px 0',fontSize:12}}>Work again</button>}</>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Balance Wheel ────────────────────────────────────────────────────────────
+
+function BalanceWheel({pcts}){
+  const cx=140,cy=140,R=100,domainList=Object.entries(DOMAINS),n=domainList.length;
+  function polar(i,scale){const a=(i/n)*2*Math.PI-Math.PI/2;return[cx+R*scale*Math.cos(a),cy+R*scale*Math.sin(a)];}
+  const gridLevels=[0.25,0.5,0.75,1.0];
+  const dataPoints=domainList.map(([k],i)=>polar(i,(pcts[i]||0)/100));
+  return(
+    <svg width="100%" viewBox="0 0 280 280" style={{maxWidth:280,margin:'0 auto',display:'block'}}>
+      {gridLevels.map(l=><polygon key={l} points={domainList.map((_,i)=>polar(i,l).join(',')).join(' ')} fill="none" stroke="var(--border)" strokeWidth={l===1?1:0.5}/>)}
+      {gridLevels.map(l=>{const[lx,ly]=polar(0,l);return<text key={l} x={lx+4} y={ly} style={{fontSize:9,fill:'var(--text3)',fontFamily:'inherit'}}>{Math.round(l*100)}%</text>;})}
+      {domainList.map((_,i)=>{const[x,y]=polar(i,1);return<line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="var(--border)" strokeWidth={0.5}/>;} )}
+      <polygon points={dataPoints.map(p=>p.join(',')).join(' ')} fill="rgba(55,138,221,0.12)" stroke="#378ADD" strokeWidth={1.5}/>
+      {dataPoints.map(([x,y],i)=>{const[k,d]=domainList[i];return<circle key={k} cx={x} cy={y} r={5} fill={d.color} stroke="var(--surface)" strokeWidth={2}/>;} )}
+      {domainList.map(([k,d],i)=>{const a=(i/n)*2*Math.PI-Math.PI/2,lx=cx+(R+26)*Math.cos(a),ly=cy+(R+26)*Math.sin(a);return(
+        <g key={k}>
+          <text x={lx} y={ly-5} textAnchor="middle" dominantBaseline="central" style={{fontSize:11,fontWeight:500,fill:d.dark,fontFamily:'inherit'}}>{d.label}</text>
+          <text x={lx} y={ly+10} textAnchor="middle" style={{fontSize:10,fill:'var(--text2)',fontFamily:'inherit'}}>{pcts[i]||0}%</text>
+        </g>
+      );})}
+      <text x={cx} y={cy-8} textAnchor="middle" style={{fontSize:22,fontWeight:500,fill:'var(--text)',fontFamily:'inherit'}}>{Math.round(pcts.reduce((a,b)=>a+b,0)/pcts.length)}%</text>
+      <text x={cx} y={cy+10} textAnchor="middle" style={{fontSize:10,fill:'var(--text2)',fontFamily:'inherit'}}>balance</text>
+    </svg>
+  );
+}
+
+// ─── Weekly Review ────────────────────────────────────────────────────────────
+
+function WeeklyReview({app,onSave,onDismiss}){
+  const[q1,setQ1]=useState('');
+  const[q2,setQ2]=useState('');
+  const[q3,setQ3]=useState('');
+  const domainList=Object.entries(DOMAINS);
+  const allPcts=domainList.map(([k,d])=>{const arr=safeArr(app.week[k],[0,0,0,0,0,0,0]);return Math.min(100,Math.round(arr.reduce((a,b)=>a+b,0)/d.goal/7*100));});
+  const score=Math.round(allPcts.reduce((a,b)=>a+b,0)/allPcts.length);
+  const lowest=domainList.reduce((min,[k,d],i)=>allPcts[i]<allPcts[min[2]]?[k,d,i]:min,['work',DOMAINS.work,0]);
+  const highest=domainList.reduce((max,[k,d],i)=>allPcts[i]>allPcts[max[2]]?[k,d,i]:max,['work',DOMAINS.work,0]);
+  const submit=()=>{if(!q1.trim()&&!q2.trim()&&!q3.trim())return;onSave({date:todayKey(),went_well:q1,neglected:q2,priority:q3,score});};
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:500,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={e=>{if(e.target===e.currentTarget)onDismiss();}}>
+      <div style={{background:'var(--bg)',borderRadius:'20px 20px 0 0',padding:'24px 20px 32px',width:'100%',maxWidth:680,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 -8px 40px rgba(0,0,0,0.2)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+          <div><div style={{fontSize:18,fontWeight:500}}>Weekly review</div><div style={{fontSize:12,color:'var(--text2)',marginTop:2}}>{new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</div></div>
+          <button onClick={onDismiss} style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'var(--text2)'}}>×</button>
+        </div>
+        <div style={{...cs.s2,marginBottom:20}}>
+          <div style={{fontSize:12,color:'var(--text2)',marginBottom:12,fontWeight:500}}>Last week at a glance</div>
+          <div style={{display:'flex',gap:12,marginBottom:14,flexWrap:'wrap'}}>
+            <div style={{flex:1,minWidth:80,textAlign:'center'}}><div style={{fontSize:28,fontWeight:500}}>{score}%</div><div style={{fontSize:11,color:'var(--text2)'}}>Overall balance</div></div>
+            <div style={{flex:1,minWidth:80,textAlign:'center'}}><div style={{fontSize:22,fontWeight:500,color:highest[1].dark}}>{highest[1].label}</div><div style={{fontSize:11,color:'var(--text2)'}}>Most time</div></div>
+            <div style={{flex:1,minWidth:80,textAlign:'center'}}><div style={{fontSize:22,fontWeight:500,color:lowest[1].dark}}>{lowest[1].label}</div><div style={{fontSize:11,color:'var(--text2)'}}>Needs attention</div></div>
+          </div>
+          {domainList.map(([k,d],i)=>(
+            <div key={k} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+              <div style={{width:72,fontSize:12,fontWeight:500,color:d.dark}}>{d.label}</div>
+              <div style={{flex:1,height:6,background:'var(--border)',borderRadius:3,overflow:'hidden'}}><div style={{height:'100%',width:`${allPcts[i]}%`,background:d.color,borderRadius:3}}/></div>
+              <div style={{width:32,fontSize:11,color:'var(--text2)',textAlign:'right'}}>{allPcts[i]}%</div>
+            </div>
+          ))}
+        </div>
+        {[['What went well this week?',q1,setQ1,'e.g. Stayed consistent with morning prayer...'],
+          ['What was neglected or felt off?',q2,setQ2,'e.g. Missed gym sessions, less creative time...'],
+          ['What is the #1 priority for next week?',q3,setQ3,'e.g. Block 3 fitness sessions...']
+        ].map(([label,val,setter,ph])=>(
+          <div key={label} style={{marginBottom:16}}>
+            <div style={{fontSize:13,fontWeight:500,marginBottom:6}}>{label}</div>
+            <textarea value={val} onChange={e=>setter(e.target.value)} rows={2} placeholder={ph} style={{width:'100%',borderRadius:8,border:'0.5px solid var(--border)',padding:'10px 12px',fontSize:13,resize:'vertical',background:'var(--surface)',color:'var(--text)',boxSizing:'border-box'}}/>
+          </div>
+        ))}
+        <div style={{display:'flex',gap:10,marginBottom:16}}>
+          <button onClick={submit} style={{...cs.btn,flex:1,padding:'12px 0',borderRadius:10,textAlign:'center',fontSize:14}}>Save review</button>
+          <button onClick={onDismiss} style={{...cs.ghost,padding:'12px 16px',borderRadius:10,fontSize:13}}>Later</button>
+        </div>
+        {app.lastReview&&<div style={{padding:'12px 14px',background:'var(--surface2)',borderRadius:10}}><div style={{fontSize:12,color:'var(--text2)',marginBottom:4}}>Last week you prioritised:</div><div style={{fontSize:13,fontStyle:'italic',color:'var(--text)'}}>{app.lastReview.priority||'—'}</div></div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Edit Forms ───────────────────────────────────────────────────────────────
 
 function BlockEditForm({block,onSave,onCancel}){
   const[f,setF]=useState({...block});
@@ -151,416 +372,6 @@ function TaskEditForm({task,onSave,onCancel}){
   );
 }
 
-// ─── NEW: Focus Timer ─────────────────────────────────────────────────────────
-// Floating Pomodoro timer. Logs completed sessions as minutes per domain.
-
-function FocusTimer({onLog,addToast}){
-  const[open,setOpen]=useState(false);
-  const[domain,setDomain]=useState('work');
-  const[phase,setPhase]=useState('idle'); // idle | work | break
-  const[secs,setSecs]=useState(25*60);
-  const WORK=25,BREAK=5;
-  const timerRef=useRef(null);
-
-  const startWork=()=>{clearInterval(timerRef.current);setPhase('work');setSecs(WORK*60);};
-  const stopAndLog=()=>{
-    clearInterval(timerRef.current);
-    if(phase==='work'){
-      const elapsed=Math.max(1,Math.round((WORK*60-secs)/60));
-      onLog(domain,elapsed);
-      addToast(`${elapsed}m logged for ${DOMAINS[domain].label} ✅`);
-    }
-    setPhase('idle');setSecs(WORK*60);
-  };
-
-  useEffect(()=>{
-    if(phase==='idle'){clearInterval(timerRef.current);return;}
-    timerRef.current=setInterval(()=>{
-      setSecs(s=>{
-        if(s<=1){
-          clearInterval(timerRef.current);
-          if(phase==='work'){
-            onLog(domain,WORK);
-            addToast(`${WORK}m deep work logged for ${DOMAINS[domain].label} 🎯`);
-            setPhase('break');setSecs(BREAK*60);
-            return 0;
-          }else{
-            setPhase('idle');setSecs(WORK*60);return 0;
-          }
-        }
-        return s-1;
-      });
-    },1000);
-    return()=>clearInterval(timerRef.current);
-  },[phase,domain]);
-
-  const mm=String(Math.floor(secs/60)).padStart(2,'0');
-  const ss2=String(secs%60).padStart(2,'0');
-  const d=DOMAINS[domain];
-  const isRunning=phase!=='idle';
-  const progress=phase==='work'?1-(secs/(WORK*60)):phase==='break'?1-(secs/(BREAK*60)):0;
-  const circumference=2*Math.PI*34;
-
-  return(
-    <div style={{position:'fixed',bottom:88,right:16,zIndex:200}}>
-      {!open?(
-        <button onClick={()=>setOpen(true)} title="Focus timer" style={{
-          width:50,height:50,borderRadius:'50%',
-          background:isRunning?d.color:'var(--surface)',
-          border:`1.5px solid ${isRunning?d.color:'var(--border)'}`,
-          cursor:'pointer',fontSize:20,display:'flex',alignItems:'center',
-          justifyContent:'center',boxShadow:'0 2px 12px rgba(0,0,0,0.12)',
-          transition:'all 0.2s',
-        }}>
-          {isRunning?<span style={{fontSize:13,fontWeight:600,color:'#fff'}}>{mm}</span>:'⏱'}
-        </button>
-      ):(
-        <div style={{
-          background:'var(--surface)',border:'0.5px solid var(--border)',
-          borderRadius:20,padding:'18px 18px 16px',width:230,
-          boxShadow:'0 8px 32px rgba(0,0,0,0.14)',
-        }}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-            <div style={{fontSize:13,fontWeight:500}}>Focus timer</div>
-            <button onClick={()=>setOpen(false)} style={{background:'none',border:'none',cursor:'pointer',fontSize:18,color:'var(--text2)',lineHeight:1}}>×</button>
-          </div>
-
-          {/* Circular progress ring */}
-          <div style={{display:'flex',justifyContent:'center',marginBottom:14,position:'relative'}}>
-            <svg width={84} height={84}>
-              <circle cx={42} cy={42} r={34} fill="none" stroke="var(--border)" strokeWidth={4}/>
-              {isRunning&&(
-                <circle cx={42} cy={42} r={34} fill="none"
-                  stroke={phase==='break'?'#639922':d.color} strokeWidth={4}
-                  strokeLinecap="round"
-                  strokeDasharray={circumference}
-                  strokeDashoffset={circumference*(1-progress)}
-                  transform="rotate(-90 42 42)"
-                  style={{transition:'stroke-dashoffset 0.9s linear'}}
-                />
-              )}
-              <text x={42} y={44} textAnchor="middle" dominantBaseline="middle"
-                style={{fontSize:18,fontWeight:600,fill:'var(--text)',fontFamily:'inherit'}}>
-                {mm}:{ss2}
-              </text>
-            </svg>
-          </div>
-
-          <div style={{textAlign:'center',fontSize:11,color:'var(--text2)',marginBottom:14,height:16}}>
-            {phase==='idle'&&'Select domain and start'}
-            {phase==='work'&&`Focusing on ${d.label}`}
-            {phase==='break'&&'Break — well done!'}
-          </div>
-
-          {phase==='idle'&&(
-            <select value={domain} onChange={e=>setDomain(e.target.value)}
-              style={{width:'100%',marginBottom:12,fontSize:13,padding:'6px 8px',
-                borderRadius:8,border:'0.5px solid var(--border)',background:'var(--surface)',color:'var(--text)'}}>
-              {Object.entries(DOMAINS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-            </select>
-          )}
-
-          <div style={{display:'flex',gap:8}}>
-            {phase==='idle'?(
-              <button onClick={startWork} style={{...cs.btn,flex:1,textAlign:'center',
-                background:d.color,borderRadius:10,padding:'10px 0'}}>
-                Start 25m
-              </button>
-            ):(
-              <>
-                <button onClick={stopAndLog} style={{...cs.btn,flex:1,textAlign:'center',
-                  background:'#E24B4A',borderRadius:10,padding:'10px 0',fontSize:12}}>
-                  Stop & log
-                </button>
-                {phase==='break'&&(
-                  <button onClick={startWork} style={{...cs.ghost,flex:1,textAlign:'center',
-                    borderRadius:10,padding:'10px 0',fontSize:12}}>
-                    Work again
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── NEW: Balance Wheel SVG Radar ────────────────────────────────────────────
-// Pure SVG radar chart. No external library needed.
-
-function BalanceWheel({pcts}){
-  const cx=140,cy=140,R=100;
-  const domainList=Object.entries(DOMAINS);
-  const n=domainList.length;
-
-  function polarToXY(i,scale){
-    const angle=(i/n)*2*Math.PI-Math.PI/2;
-    return[cx+R*scale*Math.cos(angle),cy+R*scale*Math.sin(angle)];
-  }
-
-  const gridLevels=[0.25,0.5,0.75,1.0];
-  const gridPolygons=gridLevels.map(level=>{
-    const pts=domainList.map((_,i)=>polarToXY(i,level).join(',')).join(' ');
-    return{pts,level};
-  });
-
-  const dataPoints=domainList.map(([k],i)=>polarToXY(i,(pcts[i]||0)/100));
-  const dataPolygon=dataPoints.map(p=>p.join(',')).join(' ');
-  const outerPoints=domainList.map((_,i)=>polarToXY(i,1));
-
-  return(
-    <svg width="100%" viewBox="0 0 280 280" style={{maxWidth:280,margin:'0 auto',display:'block'}}>
-      {/* Grid polygons */}
-      {gridPolygons.map(({pts,level})=>(
-        <polygon key={level} points={pts} fill="none"
-          stroke="var(--border)" strokeWidth={level===1?1:0.5}/>
-      ))}
-      {/* Grid % labels at top spoke */}
-      {gridLevels.map(level=>{
-        const[lx,ly]=polarToXY(0,level);
-        return(
-          <text key={level} x={lx+4} y={ly} style={{fontSize:9,fill:'var(--text3)',fontFamily:'inherit'}}>
-            {Math.round(level*100)}%
-          </text>
-        );
-      })}
-      {/* Spokes */}
-      {outerPoints.map(([x,y],i)=>(
-        <line key={i} x1={cx} y1={cy} x2={x} y2={y}
-          stroke="var(--border)" strokeWidth={0.5}/>
-      ))}
-      {/* Data fill */}
-      <polygon points={dataPolygon} fill="rgba(55,138,221,0.12)" stroke="#378ADD" strokeWidth={1.5}/>
-      {/* Data dots */}
-      {dataPoints.map(([x,y],i)=>{
-        const[k,d]=domainList[i];
-        return(
-          <circle key={k} cx={x} cy={y} r={5} fill={d.color}
-            stroke="var(--surface)" strokeWidth={2}/>
-        );
-      })}
-      {/* Labels */}
-      {domainList.map(([k,d],i)=>{
-        const angle=(i/n)*2*Math.PI-Math.PI/2;
-        const labelR=R+26;
-        const lx=cx+labelR*Math.cos(angle);
-        const ly=cy+labelR*Math.sin(angle);
-        const pct=pcts[i]||0;
-        return(
-          <g key={k}>
-            <text x={lx} y={ly-5} textAnchor="middle" dominantBaseline="central"
-              style={{fontSize:11,fontWeight:500,fill:d.dark,fontFamily:'inherit'}}>
-              {d.label}
-            </text>
-            <text x={lx} y={ly+10} textAnchor="middle"
-              style={{fontSize:10,fill:'var(--text2)',fontFamily:'inherit'}}>
-              {pct}%
-            </text>
-          </g>
-        );
-      })}
-      {/* Centre score */}
-      <text x={cx} y={cy-8} textAnchor="middle"
-        style={{fontSize:22,fontWeight:500,fill:'var(--text)',fontFamily:'inherit'}}>
-        {Math.round(pcts.reduce((a,b)=>a+b,0)/pcts.length)}%
-      </text>
-      <text x={cx} y={cy+10} textAnchor="middle"
-        style={{fontSize:10,fill:'var(--text2)',fontFamily:'inherit'}}>balance</text>
-    </svg>
-  );
-}
-
-// ─── NEW: Weekly Review Modal ─────────────────────────────────────────────────
-// Triggered on Sunday or via manual button in Progress tab.
-
-function WeeklyReview({app,onSave,onDismiss}){
-  const[q1,setQ1]=useState('');
-  const[q2,setQ2]=useState('');
-  const[q3,setQ3]=useState('');
-  const domainList=Object.entries(DOMAINS);
-  const allPcts=domainList.map(([k,d])=>{
-    const arr=safeArr(app.week[k],[0,0,0,0,0,0,0]);
-    return Math.min(100,Math.round(arr.reduce((a,b)=>a+b,0)/d.goal/7*100));
-  });
-  const score=Math.round(allPcts.reduce((a,b)=>a+b,0)/allPcts.length);
-  const lowest=domainList.reduce((min,[k,d],i)=>allPcts[i]<allPcts[min[2]]?[k,d,i]:min,['work',DOMAINS.work,0]);
-  const highest=domainList.reduce((max,[k,d],i)=>allPcts[i]>allPcts[max[2]]?[k,d,i]:max,['work',DOMAINS.work,0]);
-
-  const submit=()=>{
-    if(!q1.trim()&&!q2.trim()&&!q3.trim())return;
-    onSave({date:todayKey(),went_well:q1,neglected:q2,priority:q3,score});
-  };
-
-  return(
-    <div style={{
-      position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:500,
-      display:'flex',alignItems:'flex-end',justifyContent:'center',padding:'0 0 0 0',
-    }} onClick={e=>{if(e.target===e.currentTarget)onDismiss();}}>
-      <div style={{
-        background:'var(--bg)',borderRadius:'20px 20px 0 0',padding:'24px 20px 32px',
-        width:'100%',maxWidth:680,maxHeight:'90vh',overflowY:'auto',
-        boxShadow:'0 -8px 40px rgba(0,0,0,0.2)',
-      }}>
-        {/* Header */}
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-          <div>
-            <div style={{fontSize:18,fontWeight:500}}>Weekly review</div>
-            <div style={{fontSize:12,color:'var(--text2)',marginTop:2}}>
-              {new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}
-            </div>
-          </div>
-          <button onClick={onDismiss} style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'var(--text2)'}}>×</button>
-        </div>
-
-        {/* Last week snapshot */}
-        <div style={{...cs.s2,marginBottom:20}}>
-          <div style={{fontSize:12,color:'var(--text2)',marginBottom:12,fontWeight:500}}>Last week at a glance</div>
-          <div style={{display:'flex',gap:12,marginBottom:14,flexWrap:'wrap'}}>
-            <div style={{flex:1,minWidth:80,textAlign:'center'}}>
-              <div style={{fontSize:28,fontWeight:500}}>{score}%</div>
-              <div style={{fontSize:11,color:'var(--text2)'}}>Overall balance</div>
-            </div>
-            <div style={{flex:1,minWidth:80,textAlign:'center'}}>
-              <div style={{fontSize:22,fontWeight:500,color:highest[1].dark}}>{highest[1].label}</div>
-              <div style={{fontSize:11,color:'var(--text2)'}}>Most time</div>
-            </div>
-            <div style={{flex:1,minWidth:80,textAlign:'center'}}>
-              <div style={{fontSize:22,fontWeight:500,color:lowest[1].dark}}>{lowest[1].label}</div>
-              <div style={{fontSize:11,color:'var(--text2)'}}>Needs attention</div>
-            </div>
-          </div>
-          {domainList.map(([k,d],i)=>(
-            <div key={k} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
-              <div style={{width:72,fontSize:12,fontWeight:500,color:d.dark}}>{d.label}</div>
-              <div style={{flex:1,height:6,background:'var(--border)',borderRadius:3,overflow:'hidden'}}>
-                <div style={{height:'100%',width:`${allPcts[i]}%`,background:d.color,borderRadius:3}}/>
-              </div>
-              <div style={{width:32,fontSize:11,color:'var(--text2)',textAlign:'right'}}>{allPcts[i]}%</div>
-            </div>
-          ))}
-        </div>
-
-        {/* 3 reflection questions */}
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:13,fontWeight:500,marginBottom:6}}>What went well this week?</div>
-          <textarea value={q1} onChange={e=>setQ1(e.target.value)} rows={2}
-            placeholder="e.g. Stayed consistent with morning prayer, had great family time..."
-            style={{width:'100%',borderRadius:8,border:'0.5px solid var(--border)',
-              padding:'10px 12px',fontSize:13,resize:'vertical',background:'var(--surface)',
-              color:'var(--text)',boxSizing:'border-box'}}/>
-        </div>
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:13,fontWeight:500,marginBottom:6}}>What was neglected or felt off?</div>
-          <textarea value={q2} onChange={e=>setQ2(e.target.value)} rows={2}
-            placeholder="e.g. Missed gym sessions, less creative time..."
-            style={{width:'100%',borderRadius:8,border:'0.5px solid var(--border)',
-              padding:'10px 12px',fontSize:13,resize:'vertical',background:'var(--surface)',
-              color:'var(--text)',boxSizing:'border-box'}}/>
-        </div>
-        <div style={{marginBottom:24}}>
-          <div style={{fontSize:13,fontWeight:500,marginBottom:6}}>What is the #1 priority for next week?</div>
-          <textarea value={q3} onChange={e=>setQ3(e.target.value)} rows={2}
-            placeholder="e.g. Block at least 3 fitness sessions, finish the creative project..."
-            style={{width:'100%',borderRadius:8,border:'0.5px solid var(--border)',
-              padding:'10px 12px',fontSize:13,resize:'vertical',background:'var(--surface)',
-              color:'var(--text)',boxSizing:'border-box'}}/>
-        </div>
-
-        <div style={{display:'flex',gap:10}}>
-          <button onClick={submit} style={{...cs.btn,flex:1,padding:'12px 0',borderRadius:10,textAlign:'center',fontSize:14}}>
-            Save review
-          </button>
-          <button onClick={onDismiss} style={{...cs.ghost,padding:'12px 16px',borderRadius:10,fontSize:13}}>
-            Later
-          </button>
-        </div>
-
-        {/* Suggest area (shown only after any prev review exists in app) */}
-        {app.lastReview&&(
-          <div style={{marginTop:18,padding:'12px 14px',background:'var(--surface2)',borderRadius:10}}>
-            <div style={{fontSize:12,color:'var(--text2)',marginBottom:4}}>Last week you prioritised:</div>
-            <div style={{fontSize:13,fontStyle:'italic',color:'var(--text)'}}>{app.lastReview.priority||'—'}</div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Dashboard ────────────────────────────────────────────────────────────────
-
-function Dashboard({tasks,blocks,sessions,onNavigate,onOpenReview}){
-  const today=new Date(),t=safeArr(tasks,[]),b=safeArr(blocks,[]);
-  const highPri=t.filter(x=>x.pri==='high'&&!x.done).slice(0,5);
-  const totalH=(Object.keys(DOMAINS).reduce((a,k)=>a+blockedMins(b,k,today),0)/60).toFixed(1);
-  const todayBlocks=b.filter(x=>occursOn(x,today));
-
-  // Today's focus sessions
-  const todayKey2=today.toISOString().slice(0,10);
-  const todaySessions=safeArr(sessions,[]).filter(s=>s.date===todayKey2);
-  const focusMins=todaySessions.reduce((a,s)=>a+s.mins,0);
-
-  return(
-    <div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:8,marginBottom:20}}>
-        {Object.entries(DOMAINS).map(([k,d])=>{
-          const hrs=blockedMins(b,k,today)/60,pct=Math.min(100,Math.round(hrs/d.goal*100));
-          return(<div key={k} style={{...cs.card,borderTop:`3px solid ${d.color}`}}>
-            <div style={{fontSize:12,fontWeight:500,color:d.dark,marginBottom:4}}>{d.label}</div>
-            <div style={{height:4,background:'var(--border)',borderRadius:2,overflow:'hidden',margin:'4px 0'}}><div style={{height:'100%',width:`${pct}%`,background:d.color,borderRadius:2}}/></div>
-            <div style={{fontSize:11,color:'var(--text2)'}}>{hrs.toFixed(1)}h / {d.goal}h</div>
-            <div style={{fontSize:13,fontWeight:500,color:d.dark,marginTop:2}}>{pct}%</div>
-          </div>);
-        })}
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:8,marginBottom:20}}>
-        {[
-          ['Time planned',`${totalH}h`,null],
-          ['Focus today',`${focusMins}m`,null],
-          ['Tasks done',`${t.filter(x=>x.done).length}/${t.length}`,'tasks'],
-          ['High priority',`${t.filter(x=>x.pri==='high'&&x.done).length}/${t.filter(x=>x.pri==='high').length}`,'tasks-high'],
-        ].map(([l,v,nav])=>(
-          <div key={l} onClick={nav?()=>onNavigate(nav):undefined}
-            style={{background:'var(--surface2)',borderRadius:8,padding:'12px 14px',cursor:nav?'pointer':'default'}}>
-            <div style={{fontSize:11,color:'var(--text2)',textTransform:'uppercase',letterSpacing:'0.04em',marginBottom:4}}>{l}</div>
-            <div style={{fontSize:22,fontWeight:500}}>{v}</div>
-            {nav&&<div style={{fontSize:10,color:'var(--text3)',marginTop:3}}>tap to view →</div>}
-          </div>
-        ))}
-      </div>
-
-      {/* Sunday review nudge */}
-      {new Date().getDay()===0&&(
-        <div onClick={onOpenReview} style={{
-          ...cs.s2,marginBottom:20,cursor:'pointer',
-          borderLeft:'3px solid #7F77DD',
-          display:'flex',alignItems:'center',justifyContent:'space-between',
-        }}>
-          <div>
-            <div style={{fontSize:13,fontWeight:500,color:'#3C3489'}}>Weekly review</div>
-            <div style={{fontSize:12,color:'var(--text2)'}}>Sunday check-in — reflect & plan ahead</div>
-          </div>
-          <div style={{fontSize:18,color:'#7F77DD'}}>→</div>
-        </div>
-      )}
-
-      <div style={{fontSize:14,fontWeight:500,marginBottom:10}}>High priority focus</div>
-      {highPri.length===0?<div style={{color:'var(--text2)',fontSize:13,padding:'8px 0'}}>{t.length===0?'No tasks yet — add some in the Tasks tab.':'All high-priority tasks done! 🎉'}</div>
-        :highPri.map(task=>{const d=DOMAINS[task.domain];return(
-          <div key={task.id} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',background:'var(--surface2)',borderRadius:8,marginBottom:6}}>
-            <div style={{width:8,height:8,borderRadius:'50%',background:d.color,flexShrink:0}}/>
-            <div style={{flex:1,fontSize:13}}>{task.title}</div>
-            <span style={cs.pill(d.light,d.dark)}>{d.label}</span>
-          </div>
-        );})}
-    </div>
-  );
-}
-
-// ─── Block Pill ───────────────────────────────────────────────────────────────
-
 function BlockPill({block,onDelete,onEdit,showTime}){
   const d=DOMAINS[block.domain],recurLabel=RECUR_OPTIONS.find(o=>o.value===block.recur)?.label;
   return(
@@ -568,10 +379,7 @@ function BlockPill({block,onDelete,onEdit,showTime}){
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
         <div style={{flex:1}}>
           <div style={{fontWeight:500,fontSize:12,color:d.dark}}>{block.title}</div>
-          <div style={{fontSize:11,color:d.dark,opacity:0.7}}>
-            {showTime&&`${fmtTime(block.start)} – ${fmtTime(block.end)}`}
-            {block.recur&&block.recur!=='none'&&<span style={{marginLeft:showTime?6:0}}> · {recurLabel}</span>}
-          </div>
+          <div style={{fontSize:11,color:d.dark,opacity:0.7}}>{showTime&&`${fmtTime(block.start)} – ${fmtTime(block.end)}`}{block.recur&&block.recur!=='none'&&<span style={{marginLeft:showTime?6:0}}> · {recurLabel}</span>}</div>
         </div>
         <div style={{display:'flex',gap:6,marginLeft:8,flexShrink:0}}>
           <button onClick={onEdit} style={{background:'none',border:'none',color:d.dark,fontSize:12,opacity:0.6,cursor:'pointer',padding:'0 2px'}}>✎</button>
@@ -581,8 +389,6 @@ function BlockPill({block,onDelete,onEdit,showTime}){
     </div>
   );
 }
-
-// ─── Day Timeline ─────────────────────────────────────────────────────────────
 
 function DayTimeline({date,blocks,editId,setEditId,onDelete,onSaveEdit}){
   const now=new Date(),isToday=date.toDateString()===now.toDateString();
@@ -631,8 +437,6 @@ function DayTimeline({date,blocks,editId,setEditId,onDelete,onSaveEdit}){
     </div>
   );
 }
-
-// ─── Schedule ─────────────────────────────────────────────────────────────────
 
 function Schedule({blocks,onChange}){
   const today=new Date();
@@ -719,8 +523,6 @@ function Schedule({blocks,onChange}){
   );
 }
 
-// ─── Tasks ────────────────────────────────────────────────────────────────────
-
 function Tasks({tasks,onChange,initialHighFilter,onClearHighFilter}){
   const t=safeArr(tasks,[]);
   const[form,setForm]=useState({title:'',domain:'work',pri:'high'});
@@ -744,11 +546,7 @@ function Tasks({tasks,onChange,initialHighFilter,onClearHighFilter}){
         </div>
       </div>
       <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
-        {['all',...Object.keys(DOMAINS)].map(f=>(
-          <button key={f} onClick={()=>setFilter(f)} style={{padding:'4px 12px',fontSize:12,borderRadius:20,border:'0.5px solid var(--border)',background:filter===f?'var(--surface2)':'none',fontWeight:filter===f?500:400,color:'var(--text)',cursor:'pointer'}}>
-            {f==='all'?'All':DOMAINS[f].label}
-          </button>
-        ))}
+        {['all',...Object.keys(DOMAINS)].map(f=>(<button key={f} onClick={()=>setFilter(f)} style={{padding:'4px 12px',fontSize:12,borderRadius:20,border:'0.5px solid var(--border)',background:filter===f?'var(--surface2)':'none',fontWeight:filter===f?500:400,color:'var(--text)',cursor:'pointer'}}>{f==='all'?'All':DOMAINS[f].label}</button>))}
       </div>
       <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>{[null,'high','medium','low'].map(p=>(<button key={p||'all'} onClick={()=>setPriFilter(p)} style={{padding:'3px 10px',fontSize:11,borderRadius:20,border:'0.5px solid var(--border)',background:priFilter===p?'var(--surface2)':'none',fontWeight:priFilter===p?500:400,color:'var(--text)',cursor:'pointer'}}>{p?p.charAt(0).toUpperCase()+p.slice(1):'All priorities'}</button>))}</div>
       {visible.length===0&&<div style={{color:'var(--text2)',fontSize:13,padding:'8px 0'}}>No tasks yet — add one above.</div>}
@@ -772,37 +570,73 @@ function Tasks({tasks,onChange,initialHighFilter,onClearHighFilter}){
   );
 }
 
-// ─── Progress (upgraded with Balance Wheel + Focus Sessions) ──────────────────
+function Dashboard({tasks,blocks,sessions,titheLog,onNavigate,onOpenReview,onLogTithe}){
+  const today=new Date(),t=safeArr(tasks,[]),b=safeArr(blocks,[]);
+  const highPri=t.filter(x=>x.pri==='high'&&!x.done).slice(0,5);
+  const totalH=(Object.keys(DOMAINS).reduce((a,k)=>a+blockedMins(b,k,today),0)/60).toFixed(1);
+  const todayBlocks=b.filter(x=>occursOn(x,today));
+  const focusMins=safeArr(sessions,[]).filter(s=>s.date===today.toISOString().slice(0,10)).reduce((a,s)=>a+s.mins,0);
+  return(
+    <div>
+      <ScriptureCard/>
+      {isSabbath()&&<SabbathBanner/>}
+      <TitheReminder titheLog={titheLog} onLog={onLogTithe}/>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:8,marginBottom:20}}>
+        {Object.entries(DOMAINS).map(([k,d])=>{
+          const hrs=blockedMins(b,k,today)/60,pct=Math.min(100,Math.round(hrs/d.goal*100));
+          return(<div key={k} style={{...cs.card,borderTop:`3px solid ${d.color}`}}>
+            <div style={{fontSize:12,fontWeight:500,color:d.dark,marginBottom:4}}>{d.label}</div>
+            <div style={{height:4,background:'var(--border)',borderRadius:2,overflow:'hidden',margin:'4px 0'}}><div style={{height:'100%',width:`${pct}%`,background:d.color,borderRadius:2}}/></div>
+            <div style={{fontSize:11,color:'var(--text2)'}}>{hrs.toFixed(1)}h / {d.goal}h</div>
+            <div style={{fontSize:13,fontWeight:500,color:d.dark,marginTop:2}}>{pct}%</div>
+          </div>);
+        })}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:8,marginBottom:20}}>
+        {[['Time planned',`${totalH}h`,null],['Focus today',`${focusMins}m`,null],['Tasks done',`${t.filter(x=>x.done).length}/${t.length}`,'tasks'],['High priority',`${t.filter(x=>x.pri==='high'&&x.done).length}/${t.filter(x=>x.pri==='high').length}`,'tasks-high']].map(([l,v,nav])=>(
+          <div key={l} onClick={nav?()=>onNavigate(nav):undefined} style={{background:'var(--surface2)',borderRadius:8,padding:'12px 14px',cursor:nav?'pointer':'default'}}>
+            <div style={{fontSize:11,color:'var(--text2)',textTransform:'uppercase',letterSpacing:'0.04em',marginBottom:4}}>{l}</div>
+            <div style={{fontSize:22,fontWeight:500}}>{v}</div>
+            {nav&&<div style={{fontSize:10,color:'var(--text3)',marginTop:3}}>tap to view →</div>}
+          </div>
+        ))}
+      </div>
+      {new Date().getDay()===0&&(
+        <div onClick={onOpenReview} style={{...cs.s2,marginBottom:20,cursor:'pointer',borderLeft:'3px solid #7F77DD',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div><div style={{fontSize:13,fontWeight:500,color:'#3C3489'}}>Weekly review</div><div style={{fontSize:12,color:'var(--text2)'}}>Sunday check-in — reflect & plan ahead</div></div>
+          <div style={{fontSize:18,color:'#7F77DD'}}>→</div>
+        </div>
+      )}
+      <div style={{fontSize:14,fontWeight:500,marginBottom:10}}>High priority focus</div>
+      {highPri.length===0?<div style={{color:'var(--text2)',fontSize:13,padding:'8px 0'}}>{t.length===0?'No tasks yet — add some in the Tasks tab.':'All high-priority tasks done! 🎉'}</div>
+        :highPri.map(task=>{const d=DOMAINS[task.domain];return(
+          <div key={task.id} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',background:'var(--surface2)',borderRadius:8,marginBottom:6}}>
+            <div style={{width:8,height:8,borderRadius:'50%',background:d.color,flexShrink:0}}/>
+            <div style={{flex:1,fontSize:13}}>{task.title}</div>
+            <span style={cs.pill(d.light,d.dark)}>{d.label}</span>
+          </div>
+        );})}
+    </div>
+  );
+}
 
 function Progress({week,sessions,onOpenReview,lastReview}){
   const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const sw=week&&typeof week==='object'?week:DEFAULT_WEEK;
   const domainList=Object.entries(DOMAINS);
-  const allPcts=domainList.map(([k,d])=>{
-    const arr=safeArr(sw[k],[0,0,0,0,0,0,0]);
-    return Math.min(100,Math.round(arr.reduce((a,b)=>a+b,0)/d.goal/7*100));
-  });
+  const allPcts=domainList.map(([k,d])=>{const arr=safeArr(sw[k],[0,0,0,0,0,0,0]);return Math.min(100,Math.round(arr.reduce((a,b)=>a+b,0)/d.goal/7*100));});
   const score=Math.round(allPcts.reduce((a,b)=>a+b,0)/allPcts.length);
-
-  // Focus session totals this week
   const wk=weekKey();
-  const thisWeekSessions=safeArr(sessions,[]).filter(s=>{
-    const d=new Date(s.date),wkD=new Date(wk);
-    return d>=wkD&&d<new Date(wkD.getTime()+7*86400000);
-  });
+  const thisWeekSessions=safeArr(sessions,[]).filter(s=>{const d=new Date(s.date),wkD=new Date(wk);return d>=wkD&&d<new Date(wkD.getTime()+7*86400000);});
   const focusByDomain=Object.fromEntries(Object.keys(DOMAINS).map(k=>[k,0]));
   thisWeekSessions.forEach(s=>{if(focusByDomain[s.domain]!==undefined)focusByDomain[s.domain]+=s.mins;});
   const totalFocusMins=Object.values(focusByDomain).reduce((a,b)=>a+b,0);
-
   return(
     <div>
-      {/* Balance Wheel */}
       <div style={{marginBottom:28}}>
         <div style={{fontSize:14,fontWeight:500,marginBottom:16}}>Balance wheel</div>
         <BalanceWheel pcts={allPcts}/>
       </div>
-
-      {/* Domain bar chart */}
       <div style={{fontSize:14,fontWeight:500,marginBottom:14}}>Domain progress this week</div>
       {domainList.map(([k,d],i)=>(
         <div key={k} style={{display:'flex',alignItems:'center',gap:12,marginBottom:14}}>
@@ -811,46 +645,26 @@ function Progress({week,sessions,onOpenReview,lastReview}){
           <div style={{width:34,fontSize:12,color:'var(--text2)',textAlign:'right'}}>{allPcts[i]}%</div>
         </div>
       ))}
-
-      {/* Focus session summary */}
       {totalFocusMins>0&&(
         <div style={{...cs.s2,marginBottom:24}}>
           <div style={{fontSize:13,fontWeight:500,marginBottom:10}}>Focus sessions this week</div>
-          <div style={{fontSize:11,color:'var(--text2)',marginBottom:10}}>
-            {Math.floor(totalFocusMins/60)}h {totalFocusMins%60}m total deep work
-          </div>
+          <div style={{fontSize:11,color:'var(--text2)',marginBottom:10}}>{Math.floor(totalFocusMins/60)}h {totalFocusMins%60}m total deep work</div>
           {domainList.filter(([k])=>focusByDomain[k]>0).map(([k,d])=>(
             <div key={k} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
               <div style={{width:72,fontSize:12,fontWeight:500,color:d.dark}}>{d.label}</div>
-              <div style={{flex:1,height:5,background:'var(--border)',borderRadius:3,overflow:'hidden'}}>
-                <div style={{height:'100%',width:`${Math.min(100,(focusByDomain[k]/Math.max(...Object.values(focusByDomain)))*100)}%`,background:d.color,borderRadius:3}}/>
-              </div>
+              <div style={{flex:1,height:5,background:'var(--border)',borderRadius:3,overflow:'hidden'}}><div style={{height:'100%',width:`${Math.min(100,(focusByDomain[k]/Math.max(...Object.values(focusByDomain)))*100)}%`,background:d.color,borderRadius:3}}/></div>
               <div style={{fontSize:11,color:'var(--text2)',minWidth:32,textAlign:'right'}}>{focusByDomain[k]}m</div>
             </div>
           ))}
         </div>
       )}
-
-      {/* Weekly review button */}
       <div style={{marginBottom:24}}>
-        <button onClick={onOpenReview} style={{
-          ...cs.ghost,width:'100%',padding:'12px 16px',borderRadius:10,
-          display:'flex',alignItems:'center',justifyContent:'space-between',
-          fontSize:13,
-        }}>
-          <span style={{fontWeight:500,color:'var(--text)'}}>
-            {lastReview?`Last review: ${new Date(lastReview.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}`:'Start weekly review'}
-          </span>
+        <button onClick={onOpenReview} style={{...cs.ghost,width:'100%',padding:'12px 16px',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'space-between',fontSize:13}}>
+          <span style={{fontWeight:500,color:'var(--text)'}}>{lastReview?`Last review: ${new Date(lastReview.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}`:'Start weekly review'}</span>
           <span style={{color:'#7F77DD'}}>Open →</span>
         </button>
-        {lastReview?.priority&&(
-          <div style={{fontSize:12,color:'var(--text2)',marginTop:8,padding:'0 4px'}}>
-            Last priority: <em>{lastReview.priority}</em>
-          </div>
-        )}
+        {lastReview?.priority&&<div style={{fontSize:12,color:'var(--text2)',marginTop:8,padding:'0 4px'}}>Last priority: <em>{lastReview.priority}</em></div>}
       </div>
-
-      {/* Heatmap */}
       <div style={{fontSize:14,fontWeight:500,margin:'4px 0 12px'}}>Daily heatmap</div>
       <div style={{display:'grid',gridTemplateColumns:'72px repeat(7,1fr)',gap:4,fontSize:11}}>
         <div/>
@@ -867,19 +681,12 @@ function Progress({week,sessions,onOpenReview,lastReview}){
   );
 }
 
-// ─── Google Sync ──────────────────────────────────────────────────────────────
-
 function GoogleSync({blocks,addToast}){
   const{data:session,status}=useSession();
   const[syncing,setSyncing]=useState(false);
   const push=async()=>{
     setSyncing(true);
-    try{
-      const r=await fetch('/api/calendar/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocks})});
-      const d=await r.json();
-      if(d.ok)addToast('Synced '+d.created+' events to Google Calendar ✅');
-      else addToast('Sync failed: '+d.error,'warning');
-    }catch(e){addToast('Sync failed','warning');}
+    try{const r=await fetch('/api/calendar/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocks})});const d=await r.json();if(d.ok)addToast('Synced '+d.created+' events to Google Calendar ✅');else addToast('Sync failed: '+d.error,'warning');}catch(e){addToast('Sync failed','warning');}
     setSyncing(false);
   };
   if(status==='loading')return null;
@@ -895,16 +702,12 @@ function GoogleSync({blocks,addToast}){
     <div style={{marginBottom:12}}>
       <div style={{fontSize:12,color:'var(--text2)',marginBottom:8}}>Signed in as {session.user?.email}</div>
       <div style={{display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap'}}>
-        <button onClick={push} disabled={syncing} style={{background:'var(--text)',color:'var(--bg)',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,cursor:syncing?'wait':'pointer',opacity:syncing?0.7:1}}>
-          {syncing?'Syncing...':'Push to Google Calendar'}
-        </button>
+        <button onClick={push} disabled={syncing} style={{background:'var(--text)',color:'var(--bg)',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,cursor:syncing?'wait':'pointer',opacity:syncing?0.7:1}}>{syncing?'Syncing...':'Push to Google Calendar'}</button>
         <button onClick={()=>signOut()} style={{background:'none',border:'0.5px solid var(--border)',borderRadius:8,padding:'8px 12px',fontSize:12,cursor:'pointer',color:'var(--text2)'}}>Sign out</button>
       </div>
     </div>
   );
 }
-
-// ─── Home ─────────────────────────────────────────────────────────────────────
 
 export default function Home(){
   const[app,setApp]=useState(null);
@@ -915,47 +718,27 @@ export default function Home(){
   const[syncStatus,setSyncStatus]=useState('synced');
   const[showReview,setShowReview]=useState(false);
 
-  const commit=useCallback((next)=>{
-    const safe=sanitize(next);setApp(safe);lsSave(safe);
-    setSyncStatus('saving');scheduleSync(safe);
-    setTimeout(()=>setSyncStatus('synced'),2200);
-  },[]);
+  const commit=useCallback((next)=>{const safe=sanitize(next);setApp(safe);lsSave(safe);setSyncStatus('saving');scheduleSync(safe);setTimeout(()=>setSyncStatus('synced'),2200);},[]);
+  const addToast=useCallback((msg,type='success')=>{const id=Date.now();setToasts(p=>[...p,{id,msg,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3000);},[]);
 
-  const addToast=useCallback((msg,type='success')=>{
-    const id=Date.now();setToasts(p=>[...p,{id,msg,type}]);
-    setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3000);
-  },[]);
-
-  // Log a focus session (domain + minutes)
   const logSession=useCallback((domain,mins)=>{
-    setApp(prev=>{
-      if(!prev)return prev;
-      const session={id:Date.now(),domain,mins,date:todayKey()};
-      const next=sanitize({...prev,sessions:[...safeArr(prev.sessions,[]),session]});
-      lsSave(next);scheduleSync(next);
-      return next;
-    });
+    setApp(prev=>{if(!prev)return prev;const s={id:Date.now(),domain,mins,date:todayKey()};const next=sanitize({...prev,sessions:[...safeArr(prev.sessions,[]),s]});lsSave(next);scheduleSync(next);return next;});
   },[]);
 
-  // Save weekly review answers
+  const logTithe=useCallback((month)=>{
+    setApp(prev=>{if(!prev)return prev;const next=sanitize({...prev,titheLog:[...safeArr(prev.titheLog,[]),{month,date:todayKey()}]});lsSave(next);scheduleSync(next);return next;});
+    addToast('Tithe recorded — well done! 🙏');
+  },[addToast]);
+
   const saveReview=useCallback((review)=>{
-    setApp(prev=>{
-      if(!prev)return prev;
-      const next=sanitize({...prev,lastReview:review});
-      lsSave(next);scheduleSync(next);
-      return next;
-    });
-    setShowReview(false);
-    addToast('Review saved ✅');
+    setApp(prev=>{if(!prev)return prev;const next=sanitize({...prev,lastReview:review});lsSave(next);scheduleSync(next);return next;});
+    setShowReview(false);addToast('Review saved ✅');
   },[addToast]);
 
   useEffect(()=>{
     const cached=lsLoad();setApp(cached||sanitize({}));setNow(new Date());
     const timer=setInterval(()=>setNow(new Date()),30000);
-    fetch('/api/data').then(r=>r.json()).then(({data})=>{
-      if(!data)return;const parsed=typeof data==='string'?JSON.parse(data):data;
-      const safe=sanitize(parsed);setApp(safe);lsSave(safe);
-    }).catch(()=>setSyncStatus('offline'));
+    fetch('/api/data').then(r=>r.json()).then(({data})=>{if(!data)return;const parsed=typeof data==='string'?JSON.parse(data):data;const safe=sanitize(parsed);setApp(safe);lsSave(safe);}).catch(()=>setSyncStatus('offline'));
     return()=>clearInterval(timer);
   },[]);
 
@@ -965,19 +748,13 @@ export default function Home(){
     commit({...app,streak:{count:app.streak.lastDate===yesterday?app.streak.count+1:1,lastDate:today}});
   },[!!app]);
 
-  // Auto-prompt weekly review on Sundays if not done this week
   useEffect(()=>{
     if(!app)return;
-    const isSunday=new Date().getDay()===0;
-    const alreadyReviewed=app.lastReview?.date===todayKey();
-    if(isSunday&&!alreadyReviewed&&!showReview){
-      const timer=setTimeout(()=>setShowReview(true),2000);
-      return()=>clearTimeout(timer);
-    }
+    const isSunday=new Date().getDay()===0,alreadyReviewed=app.lastReview?.date===todayKey();
+    if(isSunday&&!alreadyReviewed&&!showReview){const t=setTimeout(()=>setShowReview(true),2000);return()=>clearTimeout(t);}
   },[!!app]);
 
   if(!app||!now)return null;
-
   const allPcts=Object.entries(DOMAINS).map(([k,d])=>Math.min(100,blockedMins(app.blocks,k,now)/60/d.goal*100));
   const balScore=Math.round(allPcts.reduce((a,b)=>a+b,0)/allPcts.length);
 
@@ -992,7 +769,6 @@ export default function Home(){
         <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
         <meta name="apple-mobile-web-app-title" content="Life Balance"/>
       </Head>
-
       <div style={{maxWidth:680,margin:'0 auto',padding:'0 16px 80px'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'20px 0 16px'}}>
           <div>
@@ -1000,76 +776,31 @@ export default function Home(){
             <div style={{fontSize:13,color:'var(--text2)'}}>{now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
           </div>
           <div style={{textAlign:'right'}}>
-            <div style={{background:'var(--amber-bg)',color:'var(--amber)',borderRadius:20,padding:'4px 12px',fontSize:12,fontWeight:500,marginBottom:4}}>
-              Streak: {app.streak.count} day{app.streak.count!==1?'s':''} 🔥
-            </div>
+            <div style={{background:'var(--amber-bg)',color:'var(--amber)',borderRadius:20,padding:'4px 12px',fontSize:12,fontWeight:500,marginBottom:4}}>Streak: {app.streak.count} day{app.streak.count!==1?'s':''} 🔥</div>
             <div style={{fontSize:11,color:'var(--text2)'}}>Balance: {balScore}%</div>
           </div>
         </div>
-
         {toasts.map(t=>(
           <div key={t.id} style={{padding:'9px 14px',borderRadius:8,marginBottom:8,fontSize:13,display:'flex',justifyContent:'space-between',background:t.type==='success'?'var(--green-bg)':'var(--amber-bg)',color:t.type==='success'?'var(--green)':'var(--amber)',border:`0.5px solid ${t.type==='success'?'var(--green)':'var(--amber)'}`}}>
             <span>{t.msg}</span>
             <button onClick={()=>setToasts(p=>p.filter(x=>x.id!==t.id))} style={{background:'none',border:'none',cursor:'pointer',fontSize:18,color:'inherit',lineHeight:1}}>×</button>
           </div>
         ))}
-
         <div style={{display:'flex',borderBottom:'0.5px solid var(--border)',marginBottom:24,overflowX:'auto'}}>
-          {['dashboard','schedule','tasks','progress'].map(t=>(
-            <button key={t} style={cs.nav(tab===t)} onClick={()=>setTab(t)}>
-              {t.charAt(0).toUpperCase()+t.slice(1)}
-            </button>
-          ))}
+          {['dashboard','schedule','tasks','progress'].map(t=>(<button key={t} style={cs.nav(tab===t)} onClick={()=>setTab(t)}>{t.charAt(0).toUpperCase()+t.slice(1)}</button>))}
         </div>
-
-        {tab==='dashboard'&&(
-          <Dashboard
-            tasks={app.tasks} blocks={app.blocks} sessions={app.sessions}
-            onNavigate={(dest)=>{
-              if(dest==='tasks-high'){setHighFilter(true);setTab('tasks');}
-              else setTab(dest);
-            }}
-            onOpenReview={()=>setShowReview(true)}
-          />
-        )}
-        {tab==='schedule'&&(
-          <Schedule blocks={app.blocks} onChange={b=>{commit({...app,blocks:b});addToast('Schedule saved');}}/>
-        )}
-        {tab==='tasks'&&(
-          <Tasks tasks={app.tasks} onChange={t=>{commit({...app,tasks:t});}}
-            initialHighFilter={highFilter} onClearHighFilter={()=>setHighFilter(false)}/>
-        )}
-        {tab==='progress'&&(
-          <Progress
-            week={app.week} sessions={app.sessions}
-            onOpenReview={()=>setShowReview(true)}
-            lastReview={app.lastReview}
-          />
-        )}
-
+        {tab==='dashboard'&&<Dashboard tasks={app.tasks} blocks={app.blocks} sessions={app.sessions} titheLog={app.titheLog} onNavigate={(dest)=>{if(dest==='tasks-high'){setHighFilter(true);setTab('tasks');}else setTab(dest);}} onOpenReview={()=>setShowReview(true)} onLogTithe={logTithe}/>}
+        {tab==='schedule'&&<Schedule blocks={app.blocks} onChange={b=>{commit({...app,blocks:b});addToast('Schedule saved');}}/>}
+        {tab==='tasks'&&<Tasks tasks={app.tasks} onChange={t=>{commit({...app,tasks:t});}} initialHighFilter={highFilter} onClearHighFilter={()=>setHighFilter(false)}/>}
+        {tab==='progress'&&<Progress week={app.week} sessions={app.sessions} onOpenReview={()=>setShowReview(true)} lastReview={app.lastReview}/>}
         <div style={{marginTop:40,textAlign:'center'}}>
           <GoogleSync blocks={app.blocks} addToast={addToast}/>
-          <button onClick={()=>{commit(sanitize({}));addToast('Reset to defaults','warning');}}
-            style={{background:'none',border:'0.5px solid var(--border)',borderRadius:8,padding:'6px 14px',fontSize:12,color:'var(--text2)',cursor:'pointer',marginTop:8}}>
-            Reset to defaults
-          </button>
-          <div style={{fontSize:11,color:syncStatus==='offline'?'var(--amber)':'var(--text3)',marginTop:6}}>
-            {syncStatus==='saving'?'Saving to cloud...':syncStatus==='offline'?'Offline — saved locally':'Synced across all devices'}
-          </div>
+          <button onClick={()=>{commit(sanitize({}));addToast('Reset to defaults','warning');}} style={{background:'none',border:'0.5px solid var(--border)',borderRadius:8,padding:'6px 14px',fontSize:12,color:'var(--text2)',cursor:'pointer',marginTop:8}}>Reset to defaults</button>
+          <div style={{fontSize:11,color:syncStatus==='offline'?'var(--amber)':'var(--text3)',marginTop:6}}>{syncStatus==='saving'?'Saving to cloud...':syncStatus==='offline'?'Offline — saved locally':'Synced across all devices'}</div>
         </div>
       </div>
-
-      {/* Floating Focus Timer */}
       <FocusTimer onLog={logSession} addToast={addToast}/>
-
-      {/* Weekly Review Modal */}
-      {showReview&&(
-        <WeeklyReview
-          app={app}
-          onSave={saveReview}
-          onDismiss={()=>setShowReview(false)}
-        />
-      )}
+      {showReview&&<WeeklyReview app={app} onSave={saveReview} onDismiss={()=>setShowReview(false)}/>}
     </>
   );
 }
